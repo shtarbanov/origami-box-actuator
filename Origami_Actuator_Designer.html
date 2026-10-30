@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Origami Actuator Designer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--bg:#eceae4;--panel:#f7f6f2;--ink:#1d2330;--mute:#5d6577;--line:#cfccc2;--acc:#0b5fd0;--accfg:#fff;--warn:#b3361f;
+ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171d;--panel:#1d212a;--ink:#e8e9ee;--mute:#9aa1b2;--line:#323846;--acc:#6aa3ff;--accfg:#0c1220;--warn:#ff8f78}}
+:root[data-theme="dark"]{--bg:#14171d;--panel:#1d212a;--ink:#e8e9ee;--mute:#9aa1b2;--line:#323846;--acc:#6aa3ff;--accfg:#0c1220;--warn:#ff8f78}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Avenir Next","Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 40px;display:grid;grid-template-columns:330px 1fr;gap:20px}
+@media(max-width:820px){.wrap{grid-template-columns:1fr}}
+h1{font:600 22px/1.2 Georgia,"Iowan Old Style",serif;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 16px;font-size:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.f{margin-bottom:14px}
+.f label{display:flex;justify-content:space-between;font-weight:600;font-size:14px}
+.f small{display:block;color:var(--mute);font-weight:400;font-size:12.5px;margin-top:1px}
+.row{display:flex;gap:10px;align-items:center;margin-top:6px}
+.row input[type=range]{flex:1;accent-color:var(--acc)}
+.nw{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:6px;background:var(--bg);padding-right:8px}
+.nw:focus-within{outline:2px solid var(--acc);outline-offset:-1px}
+.num{width:58px;padding:5px 2px 5px 6px;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;text-align:right;-moz-appearance:textfield;appearance:textfield}
+.num::-webkit-outer-spin-button,.num::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+select{padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+.grp{border:0;border-top:1px solid var(--line);margin:0;padding:14px 0 0;min-width:0}
+.grp:first-child{border-top:0;padding-top:0}
+.grp legend{font:600 15px Georgia,"Iowan Old Style",serif;padding:0 0 8px}
+details.grp{padding-bottom:0}
+details.grp[open] summary{margin-bottom:8px}
+.grp summary{font:600 15px Georgia,"Iowan Old Style",serif;cursor:pointer}
+.hint{margin:0 0 10px;color:var(--mute);font-size:12.5px}
+.rst{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:6px;padding:4px 8px;font:inherit;font-size:13px;cursor:pointer}
+.rst:disabled{opacity:.4;cursor:default}
+.u{color:var(--mute);margin-left:3px}
+.tip{cursor:help;color:var(--mute);margin-left:2px;font-weight:400}
+.derived{border-top:1px dashed var(--line);padding-top:12px;margin-top:4px;font-size:14px}
+.derived b{font-variant-numeric:tabular-nums}
+.tabs{display:flex;gap:4px 8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line)}
+.tab{border:0;border-bottom:3px solid transparent;margin-bottom:-1px;background:transparent;color:var(--mute);padding:10px 16px 9px;font:inherit;font-size:16px;cursor:pointer}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected=true]{color:var(--ink);font-weight:600;border-bottom-color:var(--acc)}
+.sp{flex:1}
+.btn{border:0;background:var(--acc);color:var(--accfg);padding:7px 13px;border-radius:7px;font:inherit;font-weight:600;cursor:pointer}
+.btn.alt{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:500}
+.sheet{background:#fff;border:1px solid var(--line);border-radius:4px;overflow-x:auto;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.sheet svg{display:block;width:100%;height:auto;min-width:560px}
+#msg{min-height:20px;margin-top:10px;font-size:13.5px;color:var(--mute)}
+#msg.bad{color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <section>
+  <h1>Origami Actuator Designer</h1>
+  <p class="sub">Set the panel dimensions in millimetres. The preview and the downloads update as you type.</p>
+  <div class="card" id="ctl"></div>
+ </section>
+ <section>
+  <div class="tabs">
+   <button class="tab" role="tab" data-pg="1" aria-selected="true">Cutting</button>
+   <button class="tab" role="tab" data-pg="2" aria-selected="false">Folding</button>
+   <span class="sp"></span>
+   <select id="paper" aria-label="Paper size (landscape)" title="Paper size (landscape)"><option>A4</option><option>Letter</option><option>A3</option></select>
+   <button class="btn" id="dlpdf">Download PDF</button>
+   <button class="btn alt" id="dlsvg">SVG</button>
+  </div>
+  <div class="sheet" id="sheet"></div>
+  <div id="msg" role="status"></div>
+ </section>
+</div>
+<script>
+const PAPERS={A4:[297,210],Letter:[279.4,215.9],A3:[420,297]};
+const FIELDS=[
+ {k:'H',name:'Length',hint:'',min:10,max:200,step:0.5},
+ {k:'W',name:'Width',hint:'',min:10,max:200,step:0.5},
+ {k:'h',name:'Height',hint:'',tip:'Height of the actuator, which equals the distance between the two large panels along with the panel gaps between them. Height = 2 × folding panel width + 3 × panel gap, so folding panel width = (Height − 3 × panel gap) / 2.',min:10,max:200,step:0.1},
+ {k:'g',name:'Panel gap',hint:'',min:0.5,max:20,step:0.25},
+ {k:'x',name:'Inlet position X',hint:'',tip:'Distance from the left edge of the bottom panel to the center of the inlet.',min:2.4,max:200,step:0.25},
+ {k:'d',name:'Inlet position Y',hint:'',tip:'Distance from the bottom edge of the panels to the center of the inlet.',min:2.4,max:100,step:0.25}
+];
+const P={H:75,W:45,h:57,s:22.5,sw:22.5,g:4,d:18.75,dw:18.75,x:22.5,xAuto:true,paper:'A4'};
+const DEF={...P};
+let page=1;
+const LBL_TOP=2.9, LBL_BOT=5.25, SEAL_LW=0.18, PANEL_LW=0.15, FOLD_LW=0.1, DASH=[1.5,1];
+
+const fmt=(k,v)=>'xd'.includes(k)?(+v).toFixed(2):v; // inlet position values always show 2 decimals
+function sw(p){return Math.max(1,p.s)}
+function build(p,pg){
+ const [PW,PH]=PAPERS[p.paper], g=pg===2?p.g:0;
+ const s=sw(p), ws=[p.W,s,s,p.W,s,s];
+ const total=ws.reduce((a,b)=>a+b,0)+5*g;
+ const x0=(PW-total)/2, y0=(PH-p.H)/2, it=[];
+ const xs=[];let x=x0;ws.forEach(w=>{xs.push(x);x+=w+g});
+ [0,3].forEach(i=>it.push({k:'rect',x:xs[i],y:y0,w:p.W,h:p.H,fill:'#f2f2f2'}));
+ [0,3].forEach(i=>it.push({k:'text',x:xs[i]+p.W/2,y:y0+p.H/2+1.1,t:'Top/bottom panel'}));
+ [1,2,4,5].forEach(i=>it.push({k:'text',x:xs[i]+s/2+1.1,y:y0+p.H/2,rot:1,t:'Folding panel'}));
+ if(pg===1){
+  it.push({k:'rect',x:x0,y:y0,w:total,h:p.H,lw:PANEL_LW});
+  for(let i=1;i<6;i++)it.push({k:'line',x1:xs[i],y1:y0,x2:xs[i],y2:y0+p.H,lw:PANEL_LW});
+  const inT=y0<13, inL=x0<13, inB=y0<14; // dimension no longer fits outside the panels -> draw it inside
+  const dy=inT?y0+8:y0-9, xr=x0+total, ar=2.2, ab=0.7, dl=0.15;
+  [[x0,1],[xr,-1]].forEach(([ex,s])=>{
+   if(!inT)it.push({k:'line',x1:ex,y1:y0-1.5,x2:ex,y2:dy-2,lw:dl});
+   it.push({k:'line',x1:ex,y1:dy,x2:ex+s*ar,y2:dy-ab,lw:dl});
+   it.push({k:'line',x1:ex,y1:dy,x2:ex+s*ar,y2:dy+ab,lw:dl});
+  });
+  it.push({k:'line',x1:x0,y1:dy,x2:xr,y2:dy,lw:dl});
+  it.push({k:'text',x:x0+total/2,y:dy-1.4,t:(Math.round(total*100)/100)+' mm'});
+  const dx=inL?x0+9:x0-9;
+  [[y0,1],[y0+p.H,-1]].forEach(([ey,s])=>{
+   if(!inL)it.push({k:'line',x1:x0-1.5,y1:ey,x2:dx-2,y2:ey,lw:dl});
+   it.push({k:'line',x1:dx,y1:ey,x2:dx-ab,y2:ey+s*ar,lw:dl});
+   it.push({k:'line',x1:dx,y1:ey,x2:dx+ab,y2:ey+s*ar,lw:dl});
+  });
+  it.push({k:'line',x1:dx,y1:y0,x2:dx,y2:y0+p.H,lw:dl});
+  it.push({k:'text',x:dx-1.4,y:y0+p.H/2,rot:1,t:(Math.round(p.H*100)/100)+' mm'});
+  it.push({k:'text',x:dx+3.6,y:y0+p.H/2,rot:1,t:'(Length)'});
+  const by=inB?y0+p.H-9:y0+p.H+9;
+  const dim=(xa,xb,v,above,lb)=>{
+   [[xa,1],[xb,-1]].forEach(([ex,sg])=>{
+    if(!inB)it.push({k:'line',x1:ex,y1:y0+p.H+1.5,x2:ex,y2:by+2,lw:dl});
+    it.push({k:'line',x1:ex,y1:by,x2:ex+sg*ar,y2:by-ab,lw:dl});
+    it.push({k:'line',x1:ex,y1:by,x2:ex+sg*ar,y2:by+ab,lw:dl});
+   });
+   it.push({k:'line',x1:xa,y1:by,x2:xb,y2:by,lw:dl});
+   it.push({k:'text',x:(xa+xb)/2,y:above?by-1.4:by+3.6,t:(Math.round(v*100)/100)+' mm'});
+   if(lb)it.push({k:'text',x:(xa+xb)/2,y:by+3.6,t:'('+lb+')'});
+  };
+  dim(xs[0],xs[0]+p.W,p.W,true,'Width');
+  dim(xs[1],xs[1]+s,s,true);
+  return {it,PW,PH,need:[total,p.H]};
+ }
+ ws.forEach((w,i)=>it.push({k:'rect',x:xs[i],y:y0,w,h:p.H,lw:PANEL_LW}));
+ [1,2,4].forEach(i=>{const fx=xs[i]+ws[i]+g/2;it.push({k:'line',x1:fx,y1:y0,x2:fx,y2:y0+p.H,lw:FOLD_LW})});
+ // fold arrows: slanted arrows per folding panel, mirrored across the fold line of each pair (1&2, 4&5) and across the panel's horizontal midline (top/bottom)
+ const arrow=(x1,y1,x2,y2)=>{
+  const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy), ux=dx/L, uy=dy/L, ar=Math.min(2.2,0.4*L), ab=0.4*ar;
+  it.push({k:'line',x1,y1,x2,y2,lw:SEAL_LW});
+  [1,-1].forEach(sg=>it.push({k:'line',x1:x2,y1:y2,x2:x2-ar*ux-sg*ab*uy,y2:y2-ar*uy+sg*ab*ux,lw:SEAL_LW}));
+ };
+ [1,4].forEach(i=>{
+  const fx=xs[i]+s+g/2, mx=x=>2*fx-x;
+  const ax1=xs[i]+0.12*s, ax2=xs[i]+0.88*s, ay1=y0+Math.max(3,0.14*p.H), ay2=ay1+Math.min(0.5*(ax2-ax1),0.12*p.H);
+  const my=y=>2*y0+p.H-y; // mirror across the horizontal midline of the panel
+  arrow(ax1,ay1,ax2,ay2);
+  arrow(mx(ax1),ay1,mx(ax2),ay2);
+  arrow(ax1,my(ay1),ax2,my(ay2));
+  arrow(mx(ax1),my(ay1),mx(ax2),my(ay2));
+ });
+ const off=sw(p)+p.g, yt=y0-off, yb=y0+p.H+off;
+ [0,3].forEach(i=>{
+  it.push({k:'line',x1:xs[i],y1:yt,x2:xs[i]+p.W,y2:yt,lw:SEAL_LW,dash:true});
+  it.push({k:'line',x1:xs[i],y1:yb,x2:xs[i]+p.W,y2:yb,lw:SEAL_LW,dash:true});
+  it.push({k:'text',x:xs[i]+p.W/2,y:yt+3.6,t:'Sealing line'});
+  it.push({k:'text',x:xs[i]+p.W/2,y:yb-1.3,t:'Sealing line'});
+ });
+ it.push({k:'line',x1:x0-p.g/2,y1:y0,x2:x0-p.g/2,y2:y0+p.H,lw:SEAL_LW,dash:true});
+ it.push({k:'line',x1:x0+total+p.g/2,y1:y0,x2:x0+total+p.g/2,y2:y0+p.H,lw:SEAL_LW,dash:true});
+ const ccx=xs[3]+p.x, ccy=y0+p.H+p.d, arm=2.4;
+ it.push({k:'circle',cx:ccx,cy:ccy,r:1.5,lw:PANEL_LW});
+ it.push({k:'line',x1:ccx-arm,y1:ccy,x2:ccx+arm,y2:ccy,lw:FOLD_LW});
+ it.push({k:'line',x1:ccx,y1:ccy-arm,x2:ccx,y2:ccy+arm,lw:FOLD_LW});
+ return {it,PW,PH,need:[total,p.H]};
+}
+
+function svg(p,pg,ink){
+ const {it,PW,PH}=build(p,pg);
+ const d=DASH.join(' ');
+ const body=it.map(o=>{
+  if(o.k==='rect')return o.fill?`<rect x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" fill="${o.fill}" stroke="none"/>`:`<rect x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" fill="none" stroke="${ink}" stroke-width="${o.lw}"/>`;
+  if(o.k==='line')return `<line x1="${o.x1}" y1="${o.y1}" x2="${o.x2}" y2="${o.y2}" stroke="${ink}" stroke-width="${o.lw}"${o.dash?` stroke-dasharray="${d}"`:''}/>`;
+  if(o.k==='circle')return `<circle cx="${o.cx}" cy="${o.cy}" r="${o.r}" fill="none" stroke="${ink}" stroke-width="${o.lw}"/>`;
+  return `<text x="${o.x}" y="${o.y}"${o.rot?` transform="rotate(-90 ${o.x} ${o.y})"`:''} text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="3.175" fill="${ink}">${o.t}</text>`;
+ }).join('');
+ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PW} ${PH}" width="${PW}mm" height="${PH}mm">${body}</svg>`;
+}
+
+function render(){
+ {const PWd=PAPERS[P.paper][0],need=w=>{const s=Math.min(w/2,Math.max(4,P.sw));return 2*w+4*s};
+  let wm=200;while(wm>10&&need(wm)>PWd)wm=Math.round((wm-0.5)*2)/2;
+  P.W=Math.min(wm,Math.max(10,P.W));
+  const rw=document.getElementById('r_W'),nw=document.getElementById('n_W');
+  if(rw){rw.max=nw.max=wm;rw.value=P.W;if(document.activeElement!==nw)nw.value=P.W}
+  const hm=Math.min(200,Math.floor(PAPERS[P.paper][1]*2)/2);
+  P.H=Math.min(hm,Math.max(10,P.H));
+  const rH=document.getElementById('r_H'),nH=document.getElementById('n_H');
+  if(rH){rH.max=nH.max=hm;rH.value=P.H;if(document.activeElement!==nH)nH.value=P.H}}
+ const hmin=3*P.g+8;P.s=Math.min(P.W/2,Math.max(4,P.sw));P.h=Math.round((2*P.s+3*P.g)*1e4)/1e4;
+ const rh=document.getElementById('r_h'),nh=document.getElementById('n_h');
+ if(rh){rh.min=nh.min=hmin;rh.max=nh.max=P.W+3*P.g;rh.value=P.h;if(document.activeElement!==nh)nh.value=P.h}
+ const hi=Math.max(2.4,sw(P)+P.g-6.3);P.d=Math.min(hi,Math.max(2.4,P.dw));
+ const rd=document.getElementById('r_d'),nd=document.getElementById('n_d');
+ if(rd){rd.min=nd.min=2.4;rd.max=nd.max=hi;rd.value=P.d;if(document.activeElement!==nd)nd.value=fmt('d',P.d)}
+ if(P.xAuto)P.x=P.W/2;
+ const xhi=Math.max(2.4,P.W-2.4);P.x=Math.min(xhi,Math.max(2.4,P.x));
+ const rx=document.getElementById('r_x'),nx=document.getElementById('n_x');
+ if(rx){rx.min=nx.min=2.4;rx.max=nx.max=xhi;rx.value=P.x;if(document.activeElement!==nx)nx.value=fmt('x',P.x)}
+ const sh=document.getElementById('sheet');
+ sh.innerHTML=svg(P,page,'#000').replace(/ width="[\d.]+mm" height="[\d.]+mm"/,'');
+ const b=build(P,page),[PW,PH]=PAPERS[P.paper],m=document.getElementById('msg');
+ const off=(P.s+P.g);
+ ['g','d'].forEach(k=>{const x=document.getElementById('x_'+k);if(x)x.disabled=P[k]===DEF[k]});
+ {const x=document.getElementById('x_x');if(x)x.disabled=P.xAuto}
+ const bad=[];
+ [1,2].forEach(n=>{const r=build(P,n).need;if(r[0]>PW||r[1]>PH)bad.push(n)});
+ if(bad.length){m.className='bad';m.textContent='Page '+bad.join(' and ')+' is larger than '+P.paper+' landscape ('+PW+' × '+PH+' mm). Reduce a dimension or choose a bigger paper size.'}
+ else if(!m.dataset.keep){m.className='';m.textContent=''}
+ document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',String(+t.dataset.pg===page)));
+}
+
+function note(t,bad){const m=document.getElementById('msg');m.className=bad?'bad':'';m.textContent=t;m.dataset.keep='1';setTimeout(()=>{delete m.dataset.keep},4000)}
+
+function pdf(which){
+ const {jsPDF}=window.jspdf, [PW,PH]=PAPERS[P.paper];
+ const doc=new jsPDF({orientation:'landscape',unit:'mm',format:[PW,PH]});
+ const pages=which==='both'?[1,2]:[+which];
+ pages.forEach((pg,i)=>{
+  if(i)doc.addPage([PW,PH],'landscape');
+  doc.setDrawColor(0);doc.setTextColor(0);doc.setFont('helvetica','normal');doc.setFontSize(9);
+  build(P,pg).it.forEach(o=>{
+   if(o.lw)doc.setLineWidth(o.lw);
+   doc.setLineDashPattern(o.dash?DASH:[],0);
+   if(o.k==='rect'){if(o.fill){doc.setFillColor(242,242,242);doc.rect(o.x,o.y,o.w,o.h,'F')}else doc.rect(o.x,o.y,o.w,o.h,'S')}
+   else if(o.k==='line')doc.line(o.x1,o.y1,o.x2,o.y2);
+   else if(o.k==='circle')doc.circle(o.cx,o.cy,o.r,'S');
+   else doc.text(o.t,o.x,o.y,o.rot?{align:'center',angle:90}:{align:'center'});
+  });
+ });
+ return doc.output('arraybuffer');
+}
+
+async function save(filename,data){
+ let dl=null;try{dl=await claude.use('downloads')}catch(e){}
+ if(dl){
+  try{await dl.save({filename,data});note('Saved '+filename)}
+  catch(e){if(e&&e.code==='declined')note('Download cancelled.');else note('Could not save the file ('+(e&&e.code||'error')+').',true)}
+  return;
+ }
+ // Standard browser download (works when opened outside claude.ai)
+ try{
+  const type=filename.endsWith('.pdf')?'application/pdf':'image/svg+xml';
+  const url=URL.createObjectURL(new Blob([data],{type}));
+  const a=document.createElement('a');
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  note('Saved '+filename);
+ }catch(e){note('Could not save the file.',true)}
+}
+
+function name(ext,tag){return `actuator-stencil-${P.W}x${P.H}-h${P.h}-g${P.g}${tag}.${ext}`}
+
+// controls
+(function(){
+ const c=document.getElementById('ctl');
+ const fh=f=>`<div class="f"><label for="n_${f.k}"><span>${f.name}${f.tip?` <span class="tip" tabindex="0" title="${f.tip}">ⓘ</span>`:''}</span></label><small>${f.hint}</small>
+  <div class="row"><input type="range" id="r_${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${P[f.k]}"><span class="nw"><input class="num" type="number" id="n_${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${fmt(f.k,P[f.k])}"><span class="u">mm</span></span>${'gdx'.includes(f.k)?`<button type="button" class="rst" id="x_${f.k}">Reset</button>`:''}</div></div>`;
+ const grp=(t,ks)=>`<fieldset class="grp"><legend>${t}</legend>${FIELDS.filter(f=>ks.includes(f.k)).map(fh).join('')}</fieldset>`;
+ const adv=()=>`<details class="grp"><summary>Advanced</summary>${FIELDS.filter(f=>'gdx'.includes(f.k)).map(fh).join('')}</details>`;
+ c.innerHTML=grp('Actuator dimensions',['H','W','h'])+adv()+
+ ``;
+ FIELDS.forEach(f=>{
+  const r=document.getElementById('r_'+f.k),n=document.getElementById('n_'+f.k);
+  const set=v=>{v=parseFloat(v);if(!isFinite(v))return false;P[f.k]=Math.min(+r.max,Math.max(+r.min,v));if(f.k==='x')P.xAuto=false;if(f.k==='d')P.dw=P.d;if(f.k==='h')P.sw=Math.max(4,(P.h-3*P.g)/2);return true};
+  r.addEventListener('input',()=>{set(r.value);n.value=fmt(f.k,P[f.k]);render()});
+  n.addEventListener('input',()=>{if(set(n.value)){r.value=P[f.k];render()}});
+  n.addEventListener('change',()=>{n.value=fmt(f.k,P[f.k])});
+  const x=document.getElementById('x_'+f.k);
+  if(x)x.addEventListener('click',()=>{if(f.k==='x'){P.xAuto=true;P.x=P.W/2;r.value=P.x;n.value=fmt('x',P.x);render();return}P[f.k]=DEF[f.k];if(f.k==='d')P.dw=DEF.d;r.value=DEF[f.k];n.value=fmt(f.k,DEF[f.k]);render()});
+ });
+ document.getElementById('paper').addEventListener('change',e=>{P.paper=e.target.value;render()});
+})();
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{page=+t.dataset.pg;render()}));
+document.getElementById('dlpdf').addEventListener('click',()=>{
+ if(!window.jspdf){note('The PDF library did not load.',true);return}
+ save(name('pdf',''),pdf('both'));
+});
+document.getElementById('dlsvg').addEventListener('click',()=>save(name('svg','-p'+page),svg(P,page,'#000')));
+render();
+</script>
+</body>
+</html>
