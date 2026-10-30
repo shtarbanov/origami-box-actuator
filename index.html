@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Origami Actuator Designer</title>
+<title>Origami Actuator Design Tool</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{--bg:#eceae4;--panel:#f7f6f2;--ink:#1d2330;--mute:#5d6577;--line:#cfccc2;--acc:#0b5fd0;--accfg:#fff;--warn:#b3361f;
@@ -15,7 +15,7 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Avenir Next","Segoe UI",system-ui,sans-serif}
 .wrap{max-width:1180px;margin:0 auto;padding:20px 16px 40px;display:grid;grid-template-columns:330px 1fr;gap:20px}
 @media(max-width:820px){.wrap{grid-template-columns:1fr}}
-h1{font:600 22px/1.2 Georgia,"Iowan Old Style",serif;margin:0 0 4px}
+h1{font:600 22px/1.2 Georgia,"Iowan Old Style",serif;margin:0 0 16px}
 .sub{color:var(--mute);margin:0 0 16px;font-size:14px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
 .f{margin-bottom:14px}
@@ -50,6 +50,27 @@ details.grp[open] summary{margin-bottom:8px}
 .btn.alt{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:500}
 .sheet{background:#fff;border:1px solid var(--line);border-radius:4px;overflow-x:auto;box-shadow:0 2px 10px rgba(0,0,0,.12)}
 .sheet svg{display:block;width:100%;height:auto;min-width:560px}
+.ft{max-width:1180px;margin:-16px auto 0;padding:0 16px 24px;text-align:center}
+.lnk{border:0;background:transparent;color:var(--acc);font:inherit;font-size:14px;cursor:pointer;padding:2px 0;text-decoration:underline}
+dialog.about{width:min(640px,calc(100% - 24px));max-height:calc(100% - 48px);border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:0;overflow:hidden}
+dialog.about[open]{display:flex;flex-direction:column}
+dialog.about::backdrop{background:rgba(0,0,0,.45)}
+.ab-h{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)}
+.ab-h h2{font:600 18px Georgia,"Iowan Old Style",serif;margin:0}
+.ab-b{overflow:auto;padding:4px 18px 18px}
+.ab-b details{border-top:1px solid var(--line);padding:10px 0}
+.ab-b details:first-child{border-top:0}
+.ab-b summary{font:600 16px Georgia,"Iowan Old Style",serif;cursor:pointer}
+.ab-b details[open] summary{margin-bottom:8px}
+.ab-b ol{margin:0;padding-left:22px}
+.ab-b ol li{margin-bottom:8px}
+.ab-b .src{color:var(--mute);font-size:12.5px;border-top:1px solid var(--line);padding-top:10px;margin-top:6px}
+.ab-b p,.ab-b li{font-size:14px;margin:0 0 6px}
+.ab-b ul{margin:0;padding-left:20px}
+.ab-b ul.cl{list-style:none;padding:0}
+.ab-b ul.cl li{margin-bottom:8px}
+.ab-b .cr{color:var(--mute)}
+.ab-b a{color:var(--acc)}
 #msg{min-height:20px;margin-top:10px;font-size:13.5px;color:var(--mute)}
 #msg.bad{color:var(--warn)}
 </style>
@@ -57,8 +78,7 @@ details.grp[open] summary{margin-bottom:8px}
 <body>
 <div class="wrap">
  <section>
-  <h1>Origami Actuator Designer</h1>
-  <p class="sub">Set the panel dimensions in millimetres. The preview and the downloads update as you type.</p>
+  <h1>Origami Actuator Design Tool</h1>
   <div class="card" id="ctl"></div>
  </section>
  <section>
@@ -74,23 +94,41 @@ details.grp[open] summary{margin-bottom:8px}
   <div id="msg" role="status"></div>
  </section>
 </div>
+<footer class="ft"><button type="button" class="lnk" id="aboutBtn">About</button></footer>
+<dialog class="about" id="about" aria-labelledby="about-h">
+ <div class="ab-h"><h2 id="about-h">About</h2><button type="button" class="btn alt" id="aboutClose">Close</button></div>
+ <div class="ab-b">
+  <p>This tool generates printable cutting and folding stencils for making an origami-based chamber actuator as explained in this <a href="https://www.softrobotics.io/post/origami-based-chamber-actuators" target="_blank" rel="noopener noreferrer">tutorial</a> on the SoftRobotics.IO website.</p>
+  <details><summary>Contributors</summary>
+   <ul class="cl" id="contribList"></ul>
+  </details>
+  <p class="src">Licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-NC-SA 4.0</a>.</p>
+ </div>
+</dialog>
 <script>
 const PAPERS={A4:[297,210],Letter:[279.4,215.9],A3:[420,297]};
 const FIELDS=[
- {k:'H',name:'Length',hint:'',min:10,max:200,step:0.5},
- {k:'W',name:'Width',hint:'',min:10,max:200,step:0.5},
- {k:'h',name:'Height',hint:'',tip:'Height of the actuator, which equals the distance between the two large panels along with the panel gaps between them. Height = 2 × folding panel width + 3 × panel gap, so folding panel width = (Height − 3 × panel gap) / 2.',min:10,max:200,step:0.1},
+ {k:'H',name:'Length',hint:'',min:10,max:150,step:0.5},
+ {k:'W',name:'Width',hint:'',min:10,max:100,step:0.5},
+ {k:'h',name:'Height',hint:'',tip:'Height = 2 × folding panel width + 3 × panel gap. The slider spans 4–75 mm, but the allowable range depends on Width and Panel gap.',min:4,max:75,step:0.1},
  {k:'g',name:'Panel gap',hint:'',min:0.5,max:20,step:0.25},
  {k:'x',name:'Inlet position X',hint:'',tip:'Distance from the left edge of the bottom panel to the center of the inlet.',min:2.4,max:200,step:0.25},
  {k:'d',name:'Inlet position Y',hint:'',tip:'Distance from the bottom edge of the panels to the center of the inlet.',min:2.4,max:100,step:0.25}
 ];
-const P={H:75,W:45,h:57,s:22.5,sw:22.5,g:4,d:18.75,dw:18.75,x:22.5,xAuto:true,paper:'A4'};
+const P={H:75,Hw:75,W:45,h:57,s:22.5,sw:22.5,g:4,d:18.75,dw:18.75,x:22.5,xAuto:true,paper:'A4'};
 const DEF={...P};
+// Edit this list to change who is shown under About → Contributors. `url` is optional.
+const CONTRIBUTORS=[
+ {name:'Ali Shtarbanov',role:'',url:''},
+ {name:'Yoon Jong-hwan',role:'',url:''}
+];
 let page=1;
 const LBL_TOP=2.9, LBL_BOT=5.25, SEAL_LW=0.18, PANEL_LW=0.15, FOLD_LW=0.1, DASH=[1.5,1];
 
 const fmt=(k,v)=>'xd'.includes(k)?(+v).toFixed(2):v; // inlet position values always show 2 decimals
 function sw(p){return Math.max(1,p.s)}
+// Longest length allowed for the current settings: the sealing lines (one folding panel width + gap beyond each end of the panels) must still fit the paper height
+function hmFor(){return Math.min(150,Math.max(10,Math.floor((PAPERS[P.paper][1]-2*(P.s+P.g))*2)/2))}
 function build(p,pg){
  const [PW,PH]=PAPERS[p.paper], g=pg===2?p.g:0;
  const s=sw(p), ws=[p.W,s,s,p.W,s,s];
@@ -98,8 +136,14 @@ function build(p,pg){
  const x0=(PW-total)/2, y0=(PH-p.H)/2, it=[];
  const xs=[];let x=x0;ws.forEach(w=>{xs.push(x);x+=w+g});
  [0,3].forEach(i=>it.push({k:'rect',x:xs[i],y:y0,w:p.W,h:p.H,fill:'#f2f2f2'}));
- [0,3].forEach(i=>it.push({k:'text',x:xs[i]+p.W/2,y:y0+p.H/2+1.1,t:'Top/bottom panel'}));
- [1,2,4,5].forEach(i=>it.push({k:'text',x:xs[i]+s/2+1.1,y:y0+p.H/2,rot:1,t:'Folding panel'}));
+ // Vertical panel label: the word "panel" goes on a second line; if the panel is too narrow for two lines, only the first word is shown
+ const label=(cx,pw,first)=>{
+  const cy=y0+p.H/2;
+  if(pw>=8){it.push({k:'text',x:cx-0.8,y:cy,rot:1,t:first});it.push({k:'text',x:cx+3,y:cy,rot:1,t:'panel'})}
+  else it.push({k:'text',x:cx+1.1,y:cy,rot:1,t:first});
+ };
+ [0,3].forEach(i=>label(xs[i]+p.W/2,p.W,'Top / Bottom'));
+ [1,2,4,5].forEach(i=>label(xs[i]+s/2,s,'Folding'));
  if(pg===1){
   it.push({k:'rect',x:x0,y:y0,w:total,h:p.H,lw:PANEL_LW});
   for(let i=1;i<6;i++)it.push({k:'line',x1:xs[i],y1:y0,x2:xs[i],y2:y0+p.H,lw:PANEL_LW});
@@ -122,18 +166,18 @@ function build(p,pg){
   it.push({k:'text',x:dx-1.4,y:y0+p.H/2,rot:1,t:(Math.round(p.H*100)/100)+' mm'});
   it.push({k:'text',x:dx+3.6,y:y0+p.H/2,rot:1,t:'(Length)'});
   const by=inB?y0+p.H-9:y0+p.H+9;
-  const dim=(xa,xb,v,above,lb)=>{
+  const dim=(xa,xb,v,above,lb,fx)=>{
    [[xa,1],[xb,-1]].forEach(([ex,sg])=>{
     if(!inB)it.push({k:'line',x1:ex,y1:y0+p.H+1.5,x2:ex,y2:by+2,lw:dl});
     it.push({k:'line',x1:ex,y1:by,x2:ex+sg*ar,y2:by-ab,lw:dl});
     it.push({k:'line',x1:ex,y1:by,x2:ex+sg*ar,y2:by+ab,lw:dl});
    });
    it.push({k:'line',x1:xa,y1:by,x2:xb,y2:by,lw:dl});
-   it.push({k:'text',x:(xa+xb)/2,y:above?by-1.4:by+3.6,t:(Math.round(v*100)/100)+' mm'});
+   it.push({k:'text',x:(xa+xb)/2,y:above?by-1.4:by+3.6,t:(fx?v.toFixed(2):Math.round(v*100)/100)+' mm'});
    if(lb)it.push({k:'text',x:(xa+xb)/2,y:by+3.6,t:'('+lb+')'});
   };
   dim(xs[0],xs[0]+p.W,p.W,true,'Width');
-  dim(xs[1],xs[1]+s,s,true);
+  dim(xs[1],xs[1]+s,s,true,'',true);
   return {it,PW,PH,need:[total,p.H]};
  }
  ws.forEach((w,i)=>it.push({k:'rect',x:xs[i],y:y0,w,h:p.H,lw:PANEL_LW}));
@@ -182,18 +226,26 @@ function svg(p,pg,ink){
 }
 
 function render(){
- {const PWd=PAPERS[P.paper][0],need=w=>{const s=Math.min(w/2,Math.max(4,P.sw));return 2*w+4*s};
-  let wm=200;while(wm>10&&need(wm)>PWd)wm=Math.round((wm-0.5)*2)/2;
+ {const PWd=PAPERS[P.paper][0],need=w=>{const s=Math.min(w/2,Math.max(4,P.sw));return 2*w+4*s+5*0.5};
+  let wm=100;while(wm>10&&need(wm)>PWd)wm=Math.round((wm-0.5)*2)/2;
   P.W=Math.min(wm,Math.max(10,P.W));
   const rw=document.getElementById('r_W'),nw=document.getElementById('n_W');
-  if(rw){rw.max=nw.max=wm;rw.value=P.W;if(document.activeElement!==nw)nw.value=P.W}
-  const hm=Math.min(200,Math.floor(PAPERS[P.paper][1]*2)/2);
-  P.H=Math.min(hm,Math.max(10,P.H));
+  if(rw){rw.value=P.W;if(document.activeElement!==nw)nw.value=P.W}}
+ P.s=Math.min(P.W/2,Math.max(4,P.sw));
+ // Largest panel gap for which the Folding page (5 gaps between 6 panels) still fits the paper width
+ {const gm=Math.min(20,Math.max(0.5,Math.floor(((PAPERS[P.paper][0]-2*P.W-4*P.s)/5-1e-9)*4)/4));
+  P.g=Math.min(gm,Math.max(0.5,P.g));
+  const rg=document.getElementById('r_g'),ng=document.getElementById('n_g');
+  if(rg){rg.max=ng.max=gm;rg.value=P.g;if(document.activeElement!==ng)ng.value=P.g}}
+ // Longest length for which the sealing lines (one folding panel width + gap beyond each end of the panels) still fit the paper height
+ {const hm=hmFor();
+  P.H=Math.min(hm,Math.max(10,P.Hw));
   const rH=document.getElementById('r_H'),nH=document.getElementById('n_H');
-  if(rH){rH.max=nH.max=hm;rH.value=P.H;if(document.activeElement!==nH)nH.value=P.H}}
- const hmin=3*P.g+8;P.s=Math.min(P.W/2,Math.max(4,P.sw));P.h=Math.round((2*P.s+3*P.g)*1e4)/1e4;
+  if(rH){rH.value=P.H;if(document.activeElement!==nH)nH.value=P.H}}
+ P.s=Math.min(P.s,(75-3*P.g)/2);P.h=Math.round((2*P.s+3*P.g)*1e4)/1e4;
  const rh=document.getElementById('r_h'),nh=document.getElementById('n_h');
- if(rh){rh.min=nh.min=hmin;rh.max=nh.max=P.W+3*P.g;rh.value=P.h;if(document.activeElement!==nh)nh.value=P.h}
+ if(rh){rh.value=P.h;if(document.activeElement!==nh)nh.value=P.h}
+ {const hh=document.getElementById('hint_h');if(hh){const mx=P.W+3*P.g;hh.textContent=mx<75-1e-3&&Math.abs(P.h-mx)<1e-3?'Height cannot exceed Width + 3 × Panel gap.':''}}
  const hi=Math.max(2.4,sw(P)+P.g-6.3);P.d=Math.min(hi,Math.max(2.4,P.dw));
  const rd=document.getElementById('r_d'),nd=document.getElementById('n_d');
  if(rd){rd.min=nd.min=2.4;rd.max=nd.max=hi;rd.value=P.d;if(document.activeElement!==nd)nd.value=fmt('d',P.d)}
@@ -260,14 +312,14 @@ function name(ext,tag){return `actuator-stencil-${P.W}x${P.H}-h${P.h}-g${P.g}${t
 (function(){
  const c=document.getElementById('ctl');
  const fh=f=>`<div class="f"><label for="n_${f.k}"><span>${f.name}${f.tip?` <span class="tip" tabindex="0" title="${f.tip}">ⓘ</span>`:''}</span></label><small>${f.hint}</small>
-  <div class="row"><input type="range" id="r_${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${P[f.k]}"><span class="nw"><input class="num" type="number" id="n_${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${fmt(f.k,P[f.k])}"><span class="u">mm</span></span>${'gdx'.includes(f.k)?`<button type="button" class="rst" id="x_${f.k}">Reset</button>`:''}</div></div>`;
+  <div class="row"><input type="range" id="r_${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${P[f.k]}"><span class="nw"><input class="num" type="number" id="n_${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${fmt(f.k,P[f.k])}"><span class="u">mm</span></span>${'gdx'.includes(f.k)?`<button type="button" class="rst" id="x_${f.k}">Reset</button>`:''}</div>${f.k==='h'?'<small id="hint_h"></small>':''}</div>`;
  const grp=(t,ks)=>`<fieldset class="grp"><legend>${t}</legend>${FIELDS.filter(f=>ks.includes(f.k)).map(fh).join('')}</fieldset>`;
  const adv=()=>`<details class="grp"><summary>Advanced</summary>${FIELDS.filter(f=>'gdx'.includes(f.k)).map(fh).join('')}</details>`;
  c.innerHTML=grp('Actuator dimensions',['H','W','h'])+adv()+
  ``;
  FIELDS.forEach(f=>{
   const r=document.getElementById('r_'+f.k),n=document.getElementById('n_'+f.k);
-  const set=v=>{v=parseFloat(v);if(!isFinite(v))return false;P[f.k]=Math.min(+r.max,Math.max(+r.min,v));if(f.k==='x')P.xAuto=false;if(f.k==='d')P.dw=P.d;if(f.k==='h')P.sw=Math.max(4,(P.h-3*P.g)/2);return true};
+  const set=v=>{v=parseFloat(v);if(!isFinite(v))return false;P[f.k]=Math.min(+r.max,Math.max(+r.min,v));if(f.k==='h')P.h=Math.min(P.h,P.W+3*P.g);if(f.k==='x')P.xAuto=false;if(f.k==='H')P.Hw=Math.min(P.H,hmFor());if(f.k==='d')P.dw=P.d;if(f.k==='h')P.sw=Math.max(4,(P.h-3*P.g)/2);return true};
   r.addEventListener('input',()=>{set(r.value);n.value=fmt(f.k,P[f.k]);render()});
   n.addEventListener('input',()=>{if(set(n.value)){r.value=P[f.k];render()}});
   n.addEventListener('change',()=>{n.value=fmt(f.k,P[f.k])});
@@ -275,6 +327,25 @@ function name(ext,tag){return `actuator-stencil-${P.W}x${P.H}-h${P.h}-g${P.g}${t
   if(x)x.addEventListener('click',()=>{if(f.k==='x'){P.xAuto=true;P.x=P.W/2;r.value=P.x;n.value=fmt('x',P.x);render();return}P[f.k]=DEF[f.k];if(f.k==='d')P.dw=DEF.d;r.value=DEF[f.k];n.value=fmt(f.k,DEF[f.k]);render()});
  });
  document.getElementById('paper').addEventListener('change',e=>{P.paper=e.target.value;render()});
+ // Any interaction with the Advanced section (summary, sliders, number fields, reset buttons) shows the Folding tab
+ const advEl=c.querySelector('details.grp');
+ if(advEl){
+  const toFolding=()=>{if(page!==2){page=2;render()}};
+  ['pointerdown','focusin','input','click'].forEach(ev=>advEl.addEventListener(ev,toFolding));
+ }
+})();
+(function(){
+ const dlg=document.getElementById('about'),ul=document.getElementById('contribList');
+ CONTRIBUTORS.forEach(c=>{
+  const li=document.createElement('li'),n=document.createElement('span'),r=document.createElement('span');
+  r.className='cr';r.textContent=c.role?' \u2014 '+c.role:'';
+  if(c.url&&/^https?:\/\//i.test(c.url)){const a=document.createElement('a');a.href=c.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=c.name;n.appendChild(a)}
+  else n.textContent=c.name;
+  li.append(n,r);ul.appendChild(li);
+ });
+ document.getElementById('aboutBtn').addEventListener('click',()=>dlg.showModal());
+ document.getElementById('aboutClose').addEventListener('click',()=>dlg.close());
+ dlg.addEventListener('click',e=>{if(e.target===dlg)dlg.close()});
 })();
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{page=+t.dataset.pg;render()}));
 document.getElementById('dlpdf').addEventListener('click',()=>{
