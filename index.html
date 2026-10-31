@@ -22,7 +22,7 @@ h1{font:600 22px/1.2 Georgia,"Iowan Old Style",serif;margin:0 0 16px}
 .f label{display:flex;justify-content:space-between;font-weight:600;font-size:14px}
 .f small{display:block;color:var(--mute);font-weight:400;font-size:12.5px;margin-top:1px}
 #hint_h,#hint_H{min-height:18px}
-#hint_h:not(:empty){cursor:pointer}
+#hint_h:not(:empty),#hint_H:not(:empty){cursor:pointer}
 .ls{width:34px;flex:none;display:flex;justify-content:center}
 .lk,.rst.ic{display:inline-flex;align-items:center;padding:6px 8px}
 .rst.on{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
@@ -39,7 +39,6 @@ select{padding:5px 6px;border:1px solid var(--line);border-radius:6px;background
 details.grp{padding-bottom:0}
 details.grp[open] summary{margin-bottom:8px}
 .grp summary{font:600 15px Georgia,"Iowan Old Style",serif;cursor:pointer}
-.hint{margin:0 0 10px;color:var(--mute);font-size:12.5px}
 .rst{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:6px;padding:4px 8px;font:inherit;font-size:13px;cursor:pointer}
 .rst:disabled{opacity:.4;cursor:default}
 .u{color:var(--mute);margin-left:3px}
@@ -120,24 +119,29 @@ const FIELDS=[
  {k:'x',name:'Inlet position X',hint:'',tip:'Horizontal offset of the inlet from the center of the bottom panel. Positive values move it right, negative values move it left.',min:-20,max:20,step:0.25},
  {k:'d',name:'Inlet position Y',hint:'',tip:'Vertical offset of the inlet from the point midway between the bottom edge of the panels and the sealing line. Positive values move it down, negative values move it up.',min:-10,max:10,step:0.25}
 ];
-const P={gL:4,wL:null,hL:null,H:75,Hw:75,W:48,h:60,s:24,sw:24,g:4,d:0,dw:0,x:0,paper:'A4'};
+const P={gL:4,wL:null,hL:null,HL:null,H:75,Hw:75,W:48,h:60,s:24,sw:24,g:4,d:0,dw:0,x:0,paper:'A4'};
 const DEF={...P};
 const ICON_LOCK='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10.5" rx="2.5"/><circle cx="12" cy="15.75" r="1.3" fill="currentColor" stroke="none"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>';
 const ICON_RESET='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
-function lockUI(k,on,name){const b=document.getElementById('lock_'+k);if(!b)return;b.innerHTML=on?ICON_LOCK:ICON_OPEN;b.setAttribute('aria-pressed',String(on));b.setAttribute('aria-label',(on?'Unlock ':'Lock ')+name);b.title=on?'Unlock '+name:'Lock '+name+' (keep '+name+' fixed while other settings change)';b.classList.toggle('on',on)}
 const ICON_OPEN='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10.5" rx="2.5"/><circle cx="12" cy="15.75" r="1.3" fill="currentColor" stroke="none"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 6.4-2"/></svg>';
+function lockUI(k,on,name){const b=document.getElementById('lock_'+k);if(!b)return;b.innerHTML=on?ICON_LOCK:ICON_OPEN;b.setAttribute('aria-pressed',String(on));b.setAttribute('aria-label',(on?'Unlock ':'Lock ')+name);b.title=on?'Unlock '+name:'Lock '+name+' (keep '+name+' fixed while other settings change)';b.classList.toggle('on',on)}
 // Edit this list to change who is shown under About → Contributors. `url` is optional.
 const CONTRIBUTORS=[
  {name:'Ali Shtarbanov',role:'',url:''},
  {name:'Yoon Jong-hwan',role:'',url:''}
 ];
 let page=1;
-const LBL_TOP=2.9, LBL_BOT=5.25, SEAL_LW=0.18, PANEL_LW=0.15, FOLD_LW=0.1, DASH=[1.5,1];
+const SEAL_LW=0.18, PANEL_LW=0.15, FOLD_LW=0.1, DASH=[1.5,1];
 
 const fmt=(k,v)=>'xd'.includes(k)?(+v).toFixed(2):v; // inlet position values always show 2 decimals
 function sw(p){return Math.max(1,p.s)}
 // Longest length allowed for the current settings: the sealing lines (one folding panel width + gap beyond each end of the panels) must still fit the paper height
 function hmFor(){return Math.min(150,Math.max(10,Math.floor((PAPERS[P.paper][1]-2*(P.s+P.g))*2)/2))}
+// Folding page width rule (6 panels: 2 Top/Bottom of width W + 4 folding of width s, 5 gaps g) must fit the paper width.
+// foldTotal is the rule itself; maxS / maxG are the same rule solved for s and g.
+const foldTotal=(W,s,g)=>2*W+4*s+5*g;
+const maxS=(W,g)=>(PAPERS[P.paper][0]-2*W-5*g)/4;
+const maxG=(W,s)=>(PAPERS[P.paper][0]-2*W-4*s)/5;
 function build(p,pg){
  const [PW,PH]=PAPERS[p.paper], g=pg===2?p.g:0;
  const s=sw(p), ws=[p.W,s,s,p.W,s,s];
@@ -234,43 +238,59 @@ function svg(p,pg,ink){
  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PW} ${PH}" width="${PW}mm" height="${PH}mm">${body}</svg>`;
 }
 
+// Height is locked: adjust Panel gap (and Width, unless locked) so the locked Height still fits. Returns false if it cannot be kept.
+function keepLockedHeight(){
+ const PWd=PAPERS[P.paper][0],h=P.hL,gFix=P.gL!=null;
+ const gHi=Math.floor(Math.min(8,(h-8)/3)*4)/4;
+ const gForLen=P.HL!=null?h-(PAPERS[P.paper][1]-P.HL):-Infinity; // Length locked: 2*(folding panel width + gap) = h - g must fit what the paper leaves beside the Length
+ const gStart=gFix?P.g:Math.min(gHi,Math.max(0,Math.round(P.g*4)/4));
+ // 1) Keep Width as is and hold only the gap inside the range that still works with it (not while Width itself is being dragged)
+ if(P.mv!=='W'){
+  const gLo=Math.ceil(Math.max(0,(h-P.W)/3,2*P.W+2*h-PWd,gForLen)*4)/4;
+  if(gFix){if(P.g>=gLo-1e-9&&P.g<=gHi+1e-9)return true}
+  else if(gLo<=gHi){P.g=Math.min(gHi,Math.max(gLo,gStart));return true}
+ }
+ // 2) Otherwise move Width too (unless locked): use the smallest gap, from the current one upward, for which some Width works
+ if(P.wL==null)for(let g=gStart;g<=(gFix?P.g:gHi)+1e-9;g=Math.round((g+0.25)*4)/4){
+  const wl=Math.ceil(Math.max(10,h-3*g)*2)/2,wh=Math.min(100,Math.floor(PWd-2*h+g)/2);
+  if(wl<=wh&&g>=gForLen-1e-9){P.g=g;P.W=Math.min(wh,Math.max(wl,P.W));return true}
+ }
+ return false;
+}
+
 function render(){
  if(P.gL!=null)P.g=P.gL;
  if(P.wL!=null)P.W=P.wL;
- // Height lock: keep Height fixed; the folding panel width follows from Height and Panel gap, and Panel gap / Width stay within what still works
+ if(P.HL!=null)P.Hw=P.HL;
+ // Height lock: keep Height fixed; the folding panel width follows from Height and Panel gap
  if(P.hL!=null){
-  const PWd=PAPERS[P.paper][0],h=P.hL,gHi=Math.floor(Math.min(8,(h-8)/3)*4)/4;
-  const gFix=P.gL!=null;let g=gFix?P.g:Math.min(gHi,Math.max(0,Math.round(P.g*4)/4)),ok=false;
-  if(P.mv!=='W'){ // keep Width; hold Panel gap inside the range that still works with it
-   const gLo=Math.ceil(Math.max(0,(h-P.W)/3,2*P.W+2*h-PWd)*4)/4;
-   if(gFix){if(P.g>=gLo-1e-9&&P.g<=gHi+1e-9)ok=true}else if(gLo<=gHi){P.g=Math.min(gHi,Math.max(gLo,g));ok=true}
-  }
-  if(!ok&&P.wL==null)for(;g<=(gFix?P.g:gHi)+1e-9;g=Math.round((g+0.25)*4)/4){
-   const wl=Math.ceil(Math.max(10,h-3*g)*2)/2,wh=Math.min(100,Math.floor(PWd-2*h+g)/2);
-   if(wl<=wh){ok=true;P.g=g;P.W=Math.min(wh,Math.max(wl,P.W));break}
-  }
-  if(ok)P.sw=(h-3*P.g)/2;else{P.hL=null;note('Height was unlocked because it cannot be kept with these settings.',true)}
+  if(keepLockedHeight())P.sw=(P.hL-3*P.g)/2;
+  else{P.hL=null;note('Height was unlocked because it cannot be kept with these settings.',true)}
  }
  {const PWd=PAPERS[P.paper][0],gm0=P.gL!=null?P.gL:0.5,useMin=P.hL==null&&P.mv==='W',
   // Width being dragged with Height unlocked: Width may use the whole slider range, because Height shrinks as needed. Otherwise (e.g. Height being dragged) Width gives way instead
-  need=w=>{const s=Math.min(w/2,useMin?4:Math.max(4,P.sw));return 2*w+4*s+5*gm0};
+  need=w=>{const s=Math.min(w/2,useMin?4:Math.max(4,P.sw));return foldTotal(w,s,gm0)};
   let wm=100;while(wm>10&&need(wm)>PWd)wm=Math.round((wm-0.5)*2)/2;
-  P.W=P.wL!=null?P.wL:Math.min(wm,Math.max(10,P.W));P.wmax=wm;
+  P.W=P.wL!=null?P.wL:Math.min(wm,Math.max(10,P.W));
   if(P.hL==null){ // Height unlocked: the folding panel width may never grow beyond what still fits the paper width (matters when Width and/or Panel gap are locked)
-   const gb=P.gL!=null?P.gL:(useMin?gm0:0),smax=Math.floor(((PWd-2*P.W-5*gb)/4)*1000)/1000;if(P.sw>smax)P.sw=Math.max(4,smax)}
+   const gb=P.gL!=null?P.gL:(useMin?gm0:0),smax=Math.floor(maxS(P.W,gb)*1000)/1000;if(P.sw>smax)P.sw=Math.max(4,smax)
+   // Length locked, or Length being dragged: the folding panel width gives way so that the sealing lines still fit the paper height
+   const lenWant=P.HL!=null?P.HL:(P.mv==='H'?P.Hw:null);
+   if(lenWant!=null){const sLen=Math.floor(((PAPERS[P.paper][1]-lenWant)/2-P.g)*1000)/1000;if(P.sw>sLen)P.sw=Math.max(4,sLen)}}
   const rw=document.getElementById('r_W'),nw=document.getElementById('n_W');
   if(rw){rw.value=P.W;if(document.activeElement!==nw)nw.value=P.W;rw.disabled=nw.disabled=P.wL!=null;lockUI('W',P.wL!=null,'Width')}}
  P.s=Math.min(P.W/2,Math.max(4,P.sw));
  // Largest panel gap for which the Folding page (5 gaps between 6 panels) still fits the paper width
- {const gm=Math.min(8,Math.max(0,Math.floor(((PAPERS[P.paper][0]-2*P.W-4*P.s)/5-1e-9)*4)/4));
+ {const gm=Math.min(8,Math.max(0,Math.floor((maxG(P.W,P.s)-1e-9)*4)/4));
   if(P.hL==null&&P.gL==null)P.g=Math.min(gm,Math.max(0,P.g));
   const rg=document.getElementById('r_g'),ng=document.getElementById('n_g');
   if(rg){rg.value=P.g;if(document.activeElement!==ng)ng.value=P.g;rg.disabled=ng.disabled=P.gL!=null;lockUI('g',P.gL!=null,'Panel gap')}}
  // Longest length for which the sealing lines (one folding panel width + gap beyond each end of the panels) still fit the paper height
+ if(P.HL!=null&&PAPERS[P.paper][1]-2*(P.s+P.g)<P.HL-1e-6){P.HL=null;note('Length was unlocked because it cannot be kept with these settings.',true)}
  {const hm=hmFor();
-  P.H=Math.min(hm,Math.max(10,P.Hw));
+  P.H=P.HL!=null?P.HL:Math.min(hm,Math.max(10,P.Hw));
   const rH=document.getElementById('r_H'),nH=document.getElementById('n_H');
-  if(rH){rH.value=P.H;if(document.activeElement!==nH)nH.value=P.H}}
+  if(rH){rH.value=P.H;if(document.activeElement!==nH)nH.value=P.H;rH.disabled=nH.disabled=P.HL!=null;lockUI('H',P.HL!=null,'Length')}}
  P.s=Math.min(P.s,(75-3*P.g)/2);P.h=Math.round((2*P.s+3*P.g)*1e4)/1e4;
  const rh=document.getElementById('r_h'),nh=document.getElementById('n_h');
  if(rh){rh.value=P.h;if(document.activeElement!==nh)nh.value=P.h;rh.disabled=nh.disabled=P.hL!=null;lockUI('h',P.hL!=null,'Height')}
@@ -286,9 +306,8 @@ function render(){
  if(rx){rx.min=nx.min=-xhi;rx.max=nx.max=xhi;rx.value=P.x;if(document.activeElement!==nx)nx.value=fmt('x',P.x)}
  const sh=document.getElementById('sheet');
  sh.innerHTML=svg(P,page,'#000').replace(/ width="[\d.]+mm" height="[\d.]+mm"/,'');
- const b=build(P,page),[PW,PH]=PAPERS[P.paper],m=document.getElementById('msg');
- const off=(P.s+P.g);
- ['H','W','h','g','d','x'].forEach(k=>{const b=document.getElementById('x_'+k);if(b)b.disabled=Math.abs(P[k]-DEF[k])<1e-3||({W:P.wL,h:P.hL,g:P.gL})[k]!=null});
+ const [PW,PH]=PAPERS[P.paper],m=document.getElementById('msg');
+ ['H','W','h','g','d','x'].forEach(k=>{const b=document.getElementById('x_'+k);if(b)b.disabled=Math.abs(P[k]-DEF[k])<1e-3||({W:P.wL,h:P.hL,g:P.gL,H:P.HL})[k]!=null});
  const bad=[];
  [1,2].forEach(n=>{const r=build(P,n).need;if(r[0]>PW||r[1]>PH)bad.push(n)});
  if(bad.length){m.className='bad';m.textContent='Page '+bad.join(' and ')+' is larger than '+P.paper+' landscape ('+PW+' × '+PH+' mm). Reduce a dimension or choose a bigger paper size.'}
@@ -342,28 +361,29 @@ function name(ext,tag){return `actuator-stencil-${P.W}x${P.H}-h${P.h}-g${P.g}${t
 (function(){
  const c=document.getElementById('ctl');
  const fh=f=>`<div class="f"><label for="n_${f.k}"><span>${f.name}${f.tip?` <span class="tip" tabindex="0" title="${f.tip}">ⓘ</span>`:''}</span></label><small>${f.hint}</small>
-  <div class="row"><input type="range" id="r_${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${P[f.k]}"><span class="nw"><input class="num" type="number" id="n_${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${fmt(f.k,P[f.k])}"><span class="u">mm</span></span><span class="ls">${'hWg'.includes(f.k)?'<button type="button" class="rst lk" id="lock_'+f.k+'" aria-label="Lock '+({h:'Height',W:'Width',g:'Panel gap'})[f.k]+'" aria-pressed="false">'+ICON_OPEN+'</button>':''}</span>${'gdxHWh'.includes(f.k)?`<button type="button" class="rst ic" id="x_${f.k}" aria-label="Reset to default" title="Reset to default">${ICON_RESET}</button>`:''}</div>${f.k==='h'?'<small id="hint_h"></small>':''}${f.k==='H'?'<small id="hint_H"></small>':''}</div>`;
+  <div class="row"><input type="range" id="r_${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${P[f.k]}"><span class="nw"><input class="num" type="number" id="n_${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${fmt(f.k,P[f.k])}"><span class="u">mm</span></span><span class="ls">${'hWgH'.includes(f.k)?'<button type="button" class="rst lk" id="lock_'+f.k+'" aria-label="Lock '+({h:'Height',W:'Width',g:'Panel gap',H:'Length'})[f.k]+'" aria-pressed="false">'+ICON_OPEN+'</button>':''}</span>${'gdxHWh'.includes(f.k)?`<button type="button" class="rst ic" id="x_${f.k}" aria-label="Reset to default" title="Reset to default">${ICON_RESET}</button>`:''}</div>${f.k==='h'?'<small id="hint_h"></small>':''}${f.k==='H'?'<small id="hint_H"></small>':''}</div>`;
  const grp=(t,ks)=>`<fieldset class="grp"><legend>${t}</legend>${FIELDS.filter(f=>ks.includes(f.k)).map(fh).join('')}</fieldset>`;
  const adv=()=>`<details class="grp"><summary>Advanced</summary>${FIELDS.filter(f=>'gdx'.includes(f.k)).map(fh).join('')}</details>`;
- c.innerHTML=grp('Actuator dimensions',['H','W','h'])+adv()+
- ``;
+ c.innerHTML=grp('Actuator dimensions',['H','W','h'])+adv();
  FIELDS.forEach(f=>{
   const r=document.getElementById('r_'+f.k),n=document.getElementById('n_'+f.k);
-  const set=v=>{v=parseFloat(v);if(!isFinite(v))return false;P[f.k]=Math.min(+r.max,Math.max(+r.min,v));if(f.k==='h'){if(P.wL==null)P.W=Math.max(P.W,Math.min(100,Math.ceil((P.h-3*P.g)*2)/2));P.h=Math.min(P.h,P.W+3*P.g)}if(f.k==='H')P.Hw=Math.min(P.H,hmFor());if(f.k==='d')P.dw=P.d;if(f.k==='h')P.sw=Math.max(4,(P.h-3*P.g)/2);P.mv=f.k;return true};
+  const set=v=>{v=parseFloat(v);if(!isFinite(v))return false;P[f.k]=Math.min(+r.max,Math.max(+r.min,v));if(f.k==='h'){if(P.wL==null)P.W=Math.max(P.W,Math.min(100,Math.ceil((P.h-3*P.g)*2)/2));P.h=Math.min(P.h,P.W+3*P.g)}if(f.k==='H')P.Hw=P.hL==null?P.H:Math.min(P.H,hmFor());if(f.k==='d')P.dw=P.d;if(f.k==='h')P.sw=Math.max(4,(P.h-3*P.g)/2);P.mv=f.k;return true};
   r.addEventListener('input',()=>{set(r.value);n.value=fmt(f.k,P[f.k]);render()});
   n.addEventListener('input',()=>{if(set(n.value)){r.value=P[f.k];render()}});
   n.addEventListener('change',()=>{n.value=fmt(f.k,P[f.k])});
   const x=document.getElementById('x_'+f.k);
   if(x)x.addEventListener('click',()=>{if(set(DEF[f.k])){r.value=P[f.k];n.value=fmt(f.k,P[f.k]);render()}});
  });
- // Clicking the "Folding page has reached the paper width" hint jumps to the Folding tab
- {const hh=document.getElementById('hint_h');
+ // Clicking a "Folding page has reached the paper ..." hint (under Length or Height) jumps to the Folding tab
+ ['hint_H','hint_h'].forEach(id=>{const hh=document.getElementById(id);
   if(hh){hh.setAttribute('role','button');hh.tabIndex=0;
    const go=()=>{if(hh.textContent&&page!==2){page=2;render()}};
    hh.addEventListener('click',go);
-   hh.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}})}}
+   hh.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}})}});
  const lk=document.getElementById('lock_h');
  if(lk)lk.addEventListener('click',()=>{P.mv=null;if(P.hL==null){P.hL=P.h}else{P.hL=null;P.sw=P.s}render()});
+ const lkH=document.getElementById('lock_H');
+ if(lkH)lkH.addEventListener('click',()=>{P.mv=null;P.HL=P.HL==null?P.H:null;render()});
  const lkG=document.getElementById('lock_g');
  if(lkG)lkG.addEventListener('click',()=>{P.mv=null;P.gL=P.gL==null?P.g:null;render()});
  const lkW=document.getElementById('lock_W');
