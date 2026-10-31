@@ -112,10 +112,10 @@ const FIELDS=[
  {k:'W',name:'Width',hint:'',min:10,max:100,step:0.5},
  {k:'h',name:'Height',hint:'',tip:'Height = 2 × folding panel width + 3 × panel gap. The slider spans 4–75 mm, but the allowable range depends on Width and Panel gap.',min:4,max:75,step:0.1},
  {k:'g',name:'Panel gap',hint:'',min:0.5,max:20,step:0.25},
- {k:'x',name:'Inlet position X',hint:'',tip:'Distance from the left edge of the bottom panel to the center of the inlet.',min:2.4,max:200,step:0.25},
- {k:'d',name:'Inlet position Y',hint:'',tip:'Distance from the bottom edge of the panels to the center of the inlet.',min:2.4,max:100,step:0.25}
+ {k:'x',name:'Inlet position X',hint:'',tip:'Horizontal offset of the inlet from the center of the bottom panel. Positive values move it right, negative values move it left.',min:-20,max:20,step:0.25},
+ {k:'d',name:'Inlet position Y',hint:'',tip:'Vertical offset of the inlet from the point midway between the bottom edge of the panels and the sealing line. Positive values move it down, negative values move it up.',min:-10,max:10,step:0.25}
 ];
-const P={H:75,Hw:75,W:45,h:57,s:22.5,sw:22.5,g:4,d:18.75,dw:18.75,x:22.5,xAuto:true,paper:'A4'};
+const P={H:75,Hw:75,W:45,h:57,s:22.5,sw:22.5,g:4,d:0,dw:0,x:0,paper:'A4'};
 const DEF={...P};
 // Edit this list to change who is shown under About → Contributors. `url` is optional.
 const CONTRIBUTORS=[
@@ -206,7 +206,7 @@ function build(p,pg){
  });
  it.push({k:'line',x1:x0-p.g/2,y1:y0,x2:x0-p.g/2,y2:y0+p.H,lw:SEAL_LW,dash:true});
  it.push({k:'line',x1:x0+total+p.g/2,y1:y0,x2:x0+total+p.g/2,y2:y0+p.H,lw:SEAL_LW,dash:true});
- const ccx=xs[3]+p.x, ccy=y0+p.H+p.d, arm=2.4;
+ const ccx=xs[3]+p.W/2+p.x, ccy=y0+p.H+off/2+p.d, arm=2.4;
  it.push({k:'circle',cx:ccx,cy:ccy,r:1.5,lw:PANEL_LW});
  it.push({k:'line',x1:ccx-arm,y1:ccy,x2:ccx+arm,y2:ccy,lw:FOLD_LW});
  it.push({k:'line',x1:ccx,y1:ccy-arm,x2:ccx,y2:ccy+arm,lw:FOLD_LW});
@@ -246,19 +246,18 @@ function render(){
  const rh=document.getElementById('r_h'),nh=document.getElementById('n_h');
  if(rh){rh.value=P.h;if(document.activeElement!==nh)nh.value=P.h}
  {const hh=document.getElementById('hint_h');if(hh){const mx=P.W+3*P.g;hh.textContent=mx<75-1e-3&&Math.abs(P.h-mx)<1e-3?'Height cannot exceed Width + 3 × Panel gap.':''}}
- const hi=Math.max(2.4,sw(P)+P.g-6.3);P.d=Math.min(hi,Math.max(2.4,P.dw));
+ const hi=Math.max(1,Math.floor(((sw(P)+P.g)/2-6.3)*4)/4);P.d=Math.min(hi,Math.max(-hi,P.dw));
  const rd=document.getElementById('r_d'),nd=document.getElementById('n_d');
- if(rd){rd.min=nd.min=2.4;rd.max=nd.max=hi;rd.value=P.d;if(document.activeElement!==nd)nd.value=fmt('d',P.d)}
- if(P.xAuto)P.x=P.W/2;
- const xhi=Math.max(2.4,P.W-2.4);P.x=Math.min(xhi,Math.max(2.4,P.x));
+ if(rd){rd.min=nd.min=-hi;rd.max=nd.max=hi;rd.value=P.d;if(document.activeElement!==nd)nd.value=fmt('d',P.d)}
+ const xhi=Math.max(1,Math.floor((P.W/2-2.4)*4)/4);P.x=Math.min(xhi,Math.max(-xhi,P.x));
  const rx=document.getElementById('r_x'),nx=document.getElementById('n_x');
- if(rx){rx.min=nx.min=2.4;rx.max=nx.max=xhi;rx.value=P.x;if(document.activeElement!==nx)nx.value=fmt('x',P.x)}
+ if(rx){rx.min=nx.min=-xhi;rx.max=nx.max=xhi;rx.value=P.x;if(document.activeElement!==nx)nx.value=fmt('x',P.x)}
  const sh=document.getElementById('sheet');
  sh.innerHTML=svg(P,page,'#000').replace(/ width="[\d.]+mm" height="[\d.]+mm"/,'');
  const b=build(P,page),[PW,PH]=PAPERS[P.paper],m=document.getElementById('msg');
  const off=(P.s+P.g);
  ['g','d'].forEach(k=>{const x=document.getElementById('x_'+k);if(x)x.disabled=P[k]===DEF[k]});
- {const x=document.getElementById('x_x');if(x)x.disabled=P.xAuto}
+ {const x=document.getElementById('x_x');if(x)x.disabled=P.x===0}
  const bad=[];
  [1,2].forEach(n=>{const r=build(P,n).need;if(r[0]>PW||r[1]>PH)bad.push(n)});
  if(bad.length){m.className='bad';m.textContent='Page '+bad.join(' and ')+' is larger than '+P.paper+' landscape ('+PW+' × '+PH+' mm). Reduce a dimension or choose a bigger paper size.'}
@@ -319,12 +318,12 @@ function name(ext,tag){return `actuator-stencil-${P.W}x${P.H}-h${P.h}-g${P.g}${t
  ``;
  FIELDS.forEach(f=>{
   const r=document.getElementById('r_'+f.k),n=document.getElementById('n_'+f.k);
-  const set=v=>{v=parseFloat(v);if(!isFinite(v))return false;P[f.k]=Math.min(+r.max,Math.max(+r.min,v));if(f.k==='h')P.h=Math.min(P.h,P.W+3*P.g);if(f.k==='x')P.xAuto=false;if(f.k==='H')P.Hw=Math.min(P.H,hmFor());if(f.k==='d')P.dw=P.d;if(f.k==='h')P.sw=Math.max(4,(P.h-3*P.g)/2);return true};
+  const set=v=>{v=parseFloat(v);if(!isFinite(v))return false;P[f.k]=Math.min(+r.max,Math.max(+r.min,v));if(f.k==='h')P.h=Math.min(P.h,P.W+3*P.g);if(f.k==='H')P.Hw=Math.min(P.H,hmFor());if(f.k==='d')P.dw=P.d;if(f.k==='h')P.sw=Math.max(4,(P.h-3*P.g)/2);return true};
   r.addEventListener('input',()=>{set(r.value);n.value=fmt(f.k,P[f.k]);render()});
   n.addEventListener('input',()=>{if(set(n.value)){r.value=P[f.k];render()}});
   n.addEventListener('change',()=>{n.value=fmt(f.k,P[f.k])});
   const x=document.getElementById('x_'+f.k);
-  if(x)x.addEventListener('click',()=>{if(f.k==='x'){P.xAuto=true;P.x=P.W/2;r.value=P.x;n.value=fmt('x',P.x);render();return}P[f.k]=DEF[f.k];if(f.k==='d')P.dw=DEF.d;r.value=DEF[f.k];n.value=fmt(f.k,DEF[f.k]);render()});
+  if(x)x.addEventListener('click',()=>{P[f.k]=DEF[f.k];if(f.k==='d')P.dw=DEF.d;r.value=DEF[f.k];n.value=fmt(f.k,DEF[f.k]);render()});
  });
  document.getElementById('paper').addEventListener('change',e=>{P.paper=e.target.value;render()});
  // Any interaction with the Advanced section (summary, sliders, number fields, reset buttons) shows the Folding tab
