@@ -97,6 +97,7 @@ dialog.about::backdrop{background:rgba(0,0,0,.45)}
    <button class="tab" role="tab" data-pg="2" aria-selected="false">Folding</button>
    <span class="sp"></span>
    <select id="paper" aria-label="Paper size (landscape)" title="Paper size (landscape)"><option>A4</option><option>Letter</option><option>A3</option></select>
+   <button class="rst ic on" id="scaleguide" type="button" aria-pressed="true" aria-label="Scale guide"></button>
    <button class="btn" id="dlpdf">Download PDF</button>
    <button class="btn alt" id="dlsvg">SVG</button>
   </div>
@@ -313,7 +314,7 @@ const resetView=()=>{stopGlide();VIEW.z=1;VIEW.cx=.5;VIEW.cy=pageMid(page);apply
 function previewSvg(){
  const [PW,PH]=PAPERS[P.paper],names=['','Cutting','Folding'];
  const inner=n=>{const t=svg(P,n,'#000');return t.slice(t.indexOf('>')+1,t.lastIndexOf('</svg>'))};
- const pg=n=>`<g transform="translate(0 ${pageTop(n)*PH})"><text x="0" y="-2.5" font-family="Helvetica,Arial,sans-serif" font-size="5" fill="#6b6b6b">${names[n]}</text><rect x="0" y="0" width="${PW}" height="${PH}" fill="#fff" stroke="#8a8a8a" stroke-width="0.4"/>${inner(n)}</g>`;
+ const pg=n=>`<g transform="translate(0 ${pageTop(n)*PH})"><text x="0" y="-2.5" font-family="Helvetica,Arial,sans-serif" font-size="5" fill="#6b6b6b">${names[n]}</text><rect x="0" y="0" width="${PW}" height="${PH}" fill="#fff" stroke="#8a8a8a" stroke-width="0.4"/>${inner(n)}${scaleGuideOn()?scaleGuideSvg(build(P,n).it,PW,PH):''}</g>`;
  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PW} ${PH}">${pg(1)}${pg(2)}</svg>`;
 }
 function applyView(){
@@ -435,14 +436,87 @@ function render(){
 
 function note(t,bad){const m=document.getElementById('msg');m.className=bad?'bad':'';m.textContent=t;m.dataset.keep='1';setTimeout(()=>{delete m.dataset.keep},4000)}
 
+// ---- Scale guide: the print-scale note + 100 mm guide, shown in the preview and printed on every PDF page ----
+// 1) the PDF asks viewers to print without scaling (PrintScaling = None);
+// 2) a note at the top of the page; 3) a 100 mm guide (ruler) to the right of the note, drawn only if nothing on that page is in its way.
+// The note's second sentence ("This guide must measure 100mm ...") refers to the guide, so it is only shown together with it.
+// The "Scale guide" icon button next to Download PDF switches 2) and 3) on / off, in the preview and in the PDF.
+const SCALE_NOTE='When printing, choose "Actual Size" in the print settings.';
+const SCALE_NOTE_RULER=SCALE_NOTE+' This guide must measure 100mm if printed at 100% scale.';
+const RULER_MM=100, SCALE_PAD=1.5, GUIDE_PT=8; // SCALE_PAD: clear space (mm) required around the note / ruler; GUIDE_PT: its font size
+const scaleGuideOn=()=>{const b=document.getElementById('scaleguide');return !b||b.getAttribute('aria-pressed')==='true'};
+const ICON_GUIDE='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="8" width="19" height="8" rx="1.5"/><path d="M6.5 8v3M10 8v4.5M13.5 8v3M17 8v4.5"/></svg>';
+// Width in mm of Helvetica text at `size` pt: measured with jsPDF when it is loaded, so the preview and the PDF make the same decisions
+let measureDoc=null;
+function textWidth(t,size){
+ if(window.jspdf){
+  if(!measureDoc){measureDoc=new window.jspdf.jsPDF({unit:'mm'});measureDoc.setFont('helvetica','normal')}
+  measureDoc.setFontSize(size);return measureDoc.getTextWidth(t);
+ }
+ return t.length*size*0.1764; // fallback: about half an em per character (1 pt = 0.3528 mm)
+}
+// Bounding boxes [x1,y1,x2,y2] of everything drawn on a page
+function pageBoxes(items){
+ return items.map(o=>{
+  const h=(o.lw||0)/2;
+  if(o.k==='rect')return [o.x-h,o.y-h,o.x+o.w+h,o.y+o.h+h];
+  if(o.k==='poly'){const xs=o.pts.map(q=>q[0]),ys=o.pts.map(q=>q[1]);return [Math.min(...xs)-h,Math.min(...ys)-h,Math.max(...xs)+h,Math.max(...ys)+h]}
+  if(o.k==='line')return [Math.min(o.x1,o.x2)-h,Math.min(o.y1,o.y2)-h,Math.max(o.x1,o.x2)+h,Math.max(o.y1,o.y2)+h];
+  if(o.k==='circle')return [o.cx-o.r-h,o.cy-o.r-h,o.cx+o.r+h,o.cy+o.r+h];
+  const tw=textWidth(o.t,9); // drawing text is 9 pt, centred on (x, y) = baseline
+  return o.rot?[o.x-3.2,o.y-tw/2,o.x+0.8,o.y+tw/2]:[o.x-tw/2,o.y-3.2,o.x+tw/2,o.y+0.8];
+ });
+}
+const boxHit=(boxes,r)=>boxes.some(b=>b[0]<r[2]+SCALE_PAD&&b[2]>r[0]-SCALE_PAD&&b[1]<r[3]+SCALE_PAD&&b[3]>r[1]-SCALE_PAD);
+// Where the note (and guide) go on a page: {text:{t,x,y,rot}, ruler:{x,y}|null}
+function scaleGuideLayout(items,PW,PH){
+ const boxes=pageBoxes(items);
+ // 1) note at the top-left with the guide to its right, if both are clear (checked separately: they differ in width and height).
+ // Text baseline TY; the guide's line runs through the middle of the lowercase letters, with ticks above and below it.
+ const wFull=textWidth(SCALE_NOTE_RULER,GUIDE_PT),TY=6.5,gx=10+wFull+5,gy=TY-1.1;
+ if(gx+RULER_MM<=PW-8&&!boxHit(boxes,[9,TY-2.7,10+wFull+1,TY+0.8])&&!boxHit(boxes,[gx-1,gy-2,gx+RULER_MM+1,gy+2]))
+  return {text:{t:SCALE_NOTE_RULER,x:10,y:TY},ruler:{x:gx,y:gy}};
+ // 2) otherwise the note alone (first sentence only): top-left, top-right, bottom-left, then down the left / right margin; if nothing is free, top-left anyway
+ const nw=textWidth(SCALE_NOTE,GUIDE_PT),cy=PH/2;
+ const spots=[
+  {x:10,y:TY,rect:[10,TY-2.7,10+nw,TY+0.8]},
+  {x:PW-10-nw,y:TY,rect:[PW-10-nw,TY-2.7,PW-10,TY+0.8]},
+  {x:10,y:PH-9,rect:[10,PH-12,10+nw,PH-8]},
+  {x:9,y:cy,rot:1,rect:[6,cy-nw/2,9.8,cy+nw/2]},
+  {x:PW-6,y:cy,rot:1,rect:[PW-9,cy-nw/2,PW-5.2,cy+nw/2]}
+ ];
+ const sp=spots.find(t=>!boxHit(boxes,t.rect))||spots[0];
+ return {text:{t:SCALE_NOTE,x:sp.x,y:sp.y,rot:sp.rot},ruler:null};
+}
+// The guide's strokes (a line with ticks every 10 mm)
+const rulerLines=r=>{
+ const L=[{x1:r.x,y1:r.y,x2:r.x+RULER_MM,y2:r.y}];
+ for(let k=0;k<=10;k++){const x=r.x+k*RULER_MM/10,t=k===0||k===10?1.7:(k===5?1.2:0.7);L.push({x1:x,y1:r.y-t,x2:x,y2:r.y+t})}
+ return L;
+};
+function drawScaleWarning(doc,items,PW,PH){
+ const g=scaleGuideLayout(items,PW,PH),t=g.text;
+ doc.setLineDashPattern([],0);doc.setDrawColor(0);doc.setTextColor(0);doc.setFont('helvetica','normal');doc.setFontSize(GUIDE_PT);
+ if(t.rot)doc.text(t.t,t.x,t.y,{align:'center',angle:90});else doc.text(t.t,t.x,t.y);
+ if(g.ruler){doc.setLineWidth(0.2);rulerLines(g.ruler).forEach(l=>doc.line(l.x1,l.y1,l.x2,l.y2))}
+}
+// The same guide as SVG for the preview (the SVG download never contains it)
+function scaleGuideSvg(items,PW,PH){
+ const g=scaleGuideLayout(items,PW,PH),t=g.text,esc=x=>x.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+ let out=`<text x="${t.x}" y="${t.y}" font-family="Helvetica,Arial,sans-serif" font-size="${GUIDE_PT*0.3528}" fill="#000"${t.rot?` text-anchor="middle" transform="rotate(-90 ${t.x} ${t.y})"`:''}>${esc(t.t)}</text>`;
+ if(g.ruler)out+=rulerLines(g.ruler).map(l=>`<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="#000" stroke-width="0.2"/>`).join('');
+ return out;
+}
 function pdf(which){
  const {jsPDF}=window.jspdf, [PW,PH]=PAPERS[P.paper];
  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:[PW,PH]});
+ doc.viewerPreferences({PrintScaling:'None'}); // print dialogs that honour it default to Actual size (stays on even when the printed guide is switched off)
  const pages=which==='both'?[1,2]:[+which];
  pages.forEach((pg,i)=>{
   if(i)doc.addPage([PW,PH],'landscape');
   doc.setDrawColor(0);doc.setTextColor(0);doc.setFont('helvetica','normal');doc.setFontSize(9);
-  build(P,pg).it.forEach(o=>{
+  const items=build(P,pg).it;
+  items.forEach(o=>{
    if(o.lw)doc.setLineWidth(o.lw);
    doc.setLineDashPattern(o.dash?DASH:[],0);
    if(o.k==='rect'){if(o.fill){doc.setFillColor(242,242,242);doc.rect(o.x,o.y,o.w,o.h,'F')}else doc.rect(o.x,o.y,o.w,o.h,'S')}
@@ -455,6 +529,7 @@ function pdf(which){
    else if(o.k==='circle')doc.circle(o.cx,o.cy,o.r,'S');
    else doc.text(o.t,o.x,o.y,o.rot?{align:'center',angle:90}:{align:'center'});
   });
+  if(scaleGuideOn())drawScaleWarning(doc,items,PW,PH);
  });
  return doc.output('arraybuffer');
 }
@@ -524,6 +599,15 @@ function name(ext,tag){return `actuator-stencil-${P.W}x${P.H}-h${P.h}-g${P.g}${t
    const f=1/VIEW.z;commitCentre();VIEW.cx-=(e.clientX-drag.x)/r.width*f;VIEW.cy-=(e.clientY-drag.y)/r.height*f;commitCentre();drag.x=e.clientX;drag.y=e.clientY;applyView();syncTabToView()});
   const stop=()=>{drag=null;sh.classList.remove('panning')};
   sh.addEventListener('pointerup',stop);sh.addEventListener('pointercancel',stop);}
+ // The Scale guide button shows / hides the guide in the preview as well as in the PDF
+ {const sg=document.getElementById('scaleguide');
+  if(sg){
+   const paint=()=>{const on=scaleGuideOn();sg.classList.toggle('on',on);
+    sg.title=on?'Scale guide: ON. A note at the top of each page asks to print at 100% (Actual Size), with a 100 mm guide to check the printed scale when it fits. Click to turn off.'
+              :'Scale guide: OFF. Click to add a print-at-100% note and a 100 mm guide to the preview and the PDF.'};
+   sg.innerHTML=ICON_GUIDE;paint();
+   sg.addEventListener('click',()=>{sg.setAttribute('aria-pressed',String(!scaleGuideOn()));paint();render()});
+  }}
  // Lock buttons for Length, Panel gap and Width: lock at the current value, or unlock
  [['H','HL'],['g','gL'],['W','wL']].forEach(([k,lk])=>{
   const b=document.getElementById('lock_'+k);
