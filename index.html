@@ -129,7 +129,7 @@ const GAP_MIN=1, GAP_MAX=7;
 const FIELDS=[
  {k:'H',name:'Length',hint:'',min:10,max:150,step:0.5},
  {k:'W',name:'Width',hint:'',min:10,max:100,step:0.5},
- {k:'h',name:'Height',hint:'',tip:'Height = 2 × folding panel width + 3 × panel gap. The slider spans 4–75 mm, but the allowable range depends on Width and Panel gap.',min:4,max:75,step:0.1},
+ {k:'h',name:'Height',hint:'',tip:'Height = 2 × folding panel height + 3 × panel gap. The slider spans 4–75 mm, but the allowable range depends on Width and Panel gap.',min:4,max:75,step:0.1},
  {k:'g',name:'Panel gap',hint:'',tip:'Gap between neighboring panels on the Folding page. The slider spans 1–7 mm, but the allowable range depends on Width.',min:GAP_MIN,max:GAP_MAX,step:0.25},
  {k:'x',name:'Inlet position X',hint:'',tip:'Horizontal offset of the inlet from the center of the bottom panel. Positive values move it right, negative values move it left.',min:-20,max:20,step:0.25},
  {k:'d',name:'Inlet position Y',hint:'',tip:'Vertical offset of the inlet from the point midway between the bottom edge of the panels and the sealing line. Positive values move it down, negative values move it up.',min:-10,max:10,step:0.25}
@@ -158,12 +158,16 @@ const CONTRIBUTORS=[
 let page=1;
 const SEAL_LW=0.18, PANEL_LW=0.15, FOLD_LW=0.1, DASH=[1.5,1];
 
-const fmt=(k,v)=>'xd'.includes(k)?(+v).toFixed(2):v; // inlet position values always show 2 decimals
+// Number boxes: while a slider is being dragged every value shows a fixed number of decimals (so digits don't jump around);
+// once released, trailing zeros are dropped (49.0 -> 49, 4.50 -> 4.5). Panel gap and the inlet positions move in 0.25 steps, so they need 2 decimals.
+const DECIMALS={H:1,W:1,h:1,g:2,x:2,d:2};
+let sliding=false;
+const fmt=(k,v)=>sliding?(+v).toFixed(DECIMALS[k]):String(+(+v).toFixed(DECIMALS[k]));
 // Round x to a multiple of 1/n with the given rounding function (Math.floor / Math.round / Math.ceil)
 const snap=(fn,x,n)=>fn(x*n)/n;
-// Longest length allowed for the current settings: the sealing lines (one folding panel width + gap beyond each end of the panels) must still fit the paper height
+// Longest length allowed for the current settings: the sealing lines (one folding panel height + gap beyond each end of the panels) must still fit the paper height
 function hmFor(){return Math.min(150,Math.max(10,snap(Math.floor,PAPERS[P.paper][1]-2*(P.s+P.g),2)))}
-// Folding page width rule (6 panels: 2 Top/Bottom of width W + 4 folding of width s, 5 gaps g) must fit the paper width.
+// Folding page width rule (6 panels side by side: 2 Top/Bottom panels of Width W + 4 folding panels of Height s, 5 gaps g) must fit the paper width.
 // foldTotal is the rule itself; maxS / maxG are the same rule solved for s and g.
 const foldTotal=(W,s,g)=>2*W+4*s+5*g;
 const maxS=(W,g)=>(PAPERS[P.paper][0]-2*W-5*g)/4;
@@ -193,7 +197,7 @@ function build(p,pg){
    it.push({k:'line',x1:ex,y1:dy,x2:ex+s*ar,y2:dy-ab,lw:dl});
    it.push({k:'line',x1:ex,y1:dy,x2:ex+s*ar,y2:dy+ab,lw:dl});
   });
-  it.push({k:'line',x1:x0,y1:dy,x2:xr,y2:dy,lw:dl});
+  it.push({k:'line',x1:x0,y1:dy,x2:xr,y2:dy,lw:dl,dash:true});
   it.push({k:'text',x:x0+total/2,y:dy-1.4,t:(Math.round(total*100)/100)+' mm'});
   const dx=inL?x0+9:x0-9;
   [[y0,1],[y0+p.H,-1]].forEach(([ey,s])=>{
@@ -201,7 +205,7 @@ function build(p,pg){
    it.push({k:'line',x1:dx,y1:ey,x2:dx-ab,y2:ey+s*ar,lw:dl});
    it.push({k:'line',x1:dx,y1:ey,x2:dx+ab,y2:ey+s*ar,lw:dl});
   });
-  it.push({k:'line',x1:dx,y1:y0,x2:dx,y2:y0+p.H,lw:dl});
+  it.push({k:'line',x1:dx,y1:y0,x2:dx,y2:y0+p.H,lw:dl,dash:true});
   it.push({k:'text',x:dx-1.4,y:y0+p.H/2,rot:1,t:(Math.round(p.H*100)/100)+' mm'});
   it.push({k:'text',x:dx+3.6,y:y0+p.H/2,rot:1,t:'(Length)'});
   const by=inB?y0+p.H-9:y0+p.H+9;
@@ -211,7 +215,7 @@ function build(p,pg){
     it.push({k:'line',x1:ex,y1:by,x2:ex+sg*ar,y2:by-ab,lw:dl});
     it.push({k:'line',x1:ex,y1:by,x2:ex+sg*ar,y2:by+ab,lw:dl});
    });
-   it.push({k:'line',x1:xa,y1:by,x2:xb,y2:by,lw:dl});
+   it.push({k:'line',x1:xa,y1:by,x2:xb,y2:by,lw:dl,dash:true});
    it.push({k:'text',x:(xa+xb)/2,y:above?by-1.4:by+3.6,t:(fx?v.toFixed(2):Math.round(v*100)/100)+' mm'});
    if(lb)it.push({k:'text',x:(xa+xb)/2,y:by+3.6,t:'('+lb+')'});
   };
@@ -342,7 +346,7 @@ function zoomAt(k,fx=.5,fy=.5){
 function keepLockedHeight(){
  const PWd=PAPERS[P.paper][0],h=P.hL,gFix=P.gL!=null;
  const gHi=snap(Math.floor,Math.min(GAP_MAX,(h-8)/3),4);
- const gForLen=P.HL!=null?h-(PAPERS[P.paper][1]-P.HL):-Infinity; // Length locked: 2*(folding panel width + gap) = h - g must fit what the paper leaves beside the Length
+ const gForLen=P.HL!=null?h-(PAPERS[P.paper][1]-P.HL):-Infinity; // Length locked: 2*(folding panel height + gap) = h - g must fit what the paper leaves beside the Length
  const gStart=gFix?P.g:Math.min(gHi,Math.max(GAP_MIN,snap(Math.round,P.g,4)));
  // 1) Keep Width as is and hold only the gap inside the range that still works with it (not while Width itself is being dragged)
  if(P.mv!=='W'&&!(P.mv==='g'&&P.wL==null)){
@@ -362,21 +366,22 @@ function render(){
  if(P.gL!=null)P.g=P.gL;
  if(P.wL!=null)P.W=P.wL;
  if(P.HL!=null)P.wantH=P.HL;
- // Height lock: keep Height fixed; the folding panel width follows from Height and Panel gap
+ // Height lock: keep Height fixed; the folding panel height follows from Height and Panel gap
  if(P.hL!=null){
   if(keepLockedHeight())P.wantS=(P.hL-3*P.g)/2;
   else{P.hL=null;note('Height was unlocked because it cannot be kept with these settings.',true)}
  }
 
- // gLow: the gap the layout can count on at least: the locked gap, or the smallest gap an unlocked gap can shrink to
+ // gLow: the gap the layout can count on at least: the locked gap; the wanted gap while the gap slider is being dragged; otherwise the smallest gap an unlocked gap can shrink to
  {const PWd=PAPERS[P.paper][0],gLow=P.gL!=null?P.gL:(P.mv==='g'?P.g:GAP_MIN),useMin=P.hL==null&&(P.mv==='W'||P.mv==='g'),
-  // Width being dragged with Height unlocked: Width may use the whole slider range, because Height shrinks as needed. Otherwise (e.g. Height being dragged) Width gives way instead
+  // Width or Panel gap being dragged with Height unlocked: the dragged slider wins and Height (folding panel height) shrinks as needed, so Width can use its whole range.
+  // Otherwise (e.g. Height being dragged) Width gives way instead
   need=w=>{const s=Math.min(w/2,useMin?4:Math.max(4,P.wantS));return foldTotal(w,s,gLow)};
   let wm=100;while(wm>10&&need(wm)>PWd)wm=snap(Math.round,wm-0.5,2);
   P.W=P.wL!=null?P.wL:Math.min(wm,Math.max(10,P.W));
-  if(P.hL==null){ // Height unlocked: the folding panel width may never grow beyond what still fits the paper width (matters when Width and/or Panel gap are locked)
+  if(P.hL==null){ // Height unlocked: the folding panel height may never grow beyond what still fits the paper width (matters when Width and/or Panel gap are locked)
    const smax=snap(Math.floor,maxS(P.W,gLow),1000);if(P.wantS>smax)P.wantS=Math.max(4,smax)
-   // Length locked, or Length being dragged: the folding panel width gives way so that the sealing lines still fit the paper height
+   // Length locked, or Length being dragged: the folding panel height gives way so that the sealing lines still fit the paper height
    const lenWant=P.HL!=null?P.HL:(P.mv==='H'?P.wantH:null);
    if(lenWant!=null){const sLen=snap(Math.floor,(PAPERS[P.paper][1]-lenWant)/2-P.g,1000);if(P.wantS>sLen)P.wantS=Math.max(4,sLen)}}
   syncField('W',{locked:P.wL!=null,name:'Width'})}
@@ -385,11 +390,11 @@ function render(){
  {const gm=Math.min(GAP_MAX,Math.max(GAP_MIN,snap(Math.floor,maxG(P.W,P.s)+(P.mv==='g'?1e-9:-1e-9),4)));
   if(P.hL==null&&P.gL==null){
    P.g=Math.min(gm,Math.max(GAP_MIN,P.g));
-   // Length locked: the sealing lines need 2*(folding panel width + gap) of paper height beside it, and the folding panel width cannot go below 4
+   // Length locked: the sealing lines need 2*(folding panel height + gap) of paper height beside it, and the folding panel height cannot go below 4
    if(P.HL!=null)P.g=Math.min(P.g,Math.max(GAP_MIN,snap(Math.floor,(PAPERS[P.paper][1]-P.HL)/2-4,4)));
   }
   syncField('g',{locked:P.gL!=null,name:'Panel gap'})}
- // Longest length for which the sealing lines (one folding panel width + gap beyond each end of the panels) still fit the paper height
+ // Longest length for which the sealing lines (one folding panel height + gap beyond each end of the panels) still fit the paper height
  if(P.HL!=null&&PAPERS[P.paper][1]-2*(P.s+P.g)<P.HL-1e-6){P.HL=null;note('Length was unlocked because it cannot be kept with these settings.',true)}
  {const hm=hmFor();
   P.H=P.HL!=null?P.HL:Math.min(hm,Math.max(10,P.wantH));
@@ -483,6 +488,13 @@ function name(ext,tag){return `actuator-stencil-${P.W}x${P.H}-h${P.h}-g${P.g}${t
    hh.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}})}});
  const lk=document.getElementById('lock_h');
  if(lk)lk.addEventListener('click',()=>{P.mv=null;if(P.hL==null){P.hL=P.h}else{P.hL=null;P.wantS=P.s}render()});
+ // Dragging a slider switches all number boxes to the fixed-decimal display; releasing it switches back
+ {const refreshNumbers=()=>FIELDS.forEach(f=>syncField(f.k));
+  const start=e=>{if(e.target&&e.target.matches&&e.target.matches('input[type=range]')&&!sliding){sliding=true;refreshNumbers()}};
+  const end=()=>{if(sliding){sliding=false;refreshNumbers()}};
+  document.addEventListener('pointerdown',start,true);
+  ['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,end,true));
+  window.addEventListener('blur',end);}
  // Preview zoom: buttons, Ctrl/⌘ + scroll (also trackpad pinch), drag to pan, double-click to zoom in / reset
  {const sh=document.getElementById('sheet'),on=(id,fn)=>{const b=document.getElementById(id);if(b)b.addEventListener('click',fn)};
   const frac=e=>{const r=(sh.querySelector('svg')||sh).getBoundingClientRect();return r.width&&r.height?[(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]:[.5,.5]};
