@@ -52,8 +52,14 @@ details.grp[open] summary{margin-bottom:8px}
 .sp{flex:1}
 .btn{border:0;background:var(--acc);color:var(--accfg);padding:7px 13px;border-radius:7px;font:inherit;font-weight:600;cursor:pointer}
 .btn.alt{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:500}
-.sheet{background:#fff;border:1px solid var(--line);border-radius:4px;overflow-x:auto;box-shadow:0 2px 10px rgba(0,0,0,.12)}
-.sheet svg{display:block;width:100%;height:auto;min-width:560px}
+.sheet{background:#d9d7d0;border:1px solid var(--line);border-radius:4px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.sheet svg{display:block;width:100%;height:auto}
+.sheetwrap{position:relative}
+.sheet.pannable{cursor:grab;user-select:none}
+.sheet.pannable.panning{cursor:grabbing}
+.sheet.zoomed{touch-action:none}
+.zc{position:absolute;right:10px;bottom:10px;display:flex;gap:4px;padding:3px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.zc .rst{min-width:36px;font-variant-numeric:tabular-nums}
 .ft{max-width:1180px;margin:-16px auto 0;padding:0 16px 24px;text-align:center}
 .lnk{border:0;background:transparent;color:var(--acc);font:inherit;font-size:14px;cursor:pointer;padding:2px 0;text-decoration:underline}
 dialog.about{width:min(640px,calc(100% - 24px));max-height:calc(100% - 48px);border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:0;overflow:hidden}
@@ -94,7 +100,14 @@ dialog.about::backdrop{background:rgba(0,0,0,.45)}
    <button class="btn" id="dlpdf">Download PDF</button>
    <button class="btn alt" id="dlsvg">SVG</button>
   </div>
-  <div class="sheet" id="sheet"></div>
+  <div class="sheetwrap">
+   <div class="sheet" id="sheet"></div>
+   <div class="zc" role="group" aria-label="Zoom">
+    <button class="rst" id="zout" aria-label="Zoom out" title="Zoom out">−</button>
+    <button class="rst" id="zfit" aria-label="Reset zoom" title="Reset zoom (double-click the page also resets)">100%</button>
+    <button class="rst" id="zin" aria-label="Zoom in" title="Zoom in (or Ctrl/⌘ + scroll, or pinch)">+</button>
+   </div>
+  </div>
   <div id="msg" role="status"></div>
  </section>
 </div>
@@ -111,18 +124,30 @@ dialog.about::backdrop{background:rgba(0,0,0,.45)}
 </dialog>
 <script>
 const PAPERS={A4:[297,210],Letter:[279.4,215.9],A3:[420,297]};
+// Panel gap slider range (mm). An unlocked gap gives way down to GAP_MIN before Width or Height have to move.
+const GAP_MIN=1, GAP_MAX=7;
 const FIELDS=[
  {k:'H',name:'Length',hint:'',min:10,max:150,step:0.5},
  {k:'W',name:'Width',hint:'',min:10,max:100,step:0.5},
  {k:'h',name:'Height',hint:'',tip:'Height = 2 × folding panel width + 3 × panel gap. The slider spans 4–75 mm, but the allowable range depends on Width and Panel gap.',min:4,max:75,step:0.1},
- {k:'g',name:'Panel gap',hint:'',tip:'Gap between neighboring panels on the Folding page. The slider spans 0–8 mm, but the allowable range depends on Width.',min:0,max:8,step:0.25},
+ {k:'g',name:'Panel gap',hint:'',tip:'Gap between neighboring panels on the Folding page. The slider spans 1–7 mm, but the allowable range depends on Width.',min:GAP_MIN,max:GAP_MAX,step:0.25},
  {k:'x',name:'Inlet position X',hint:'',tip:'Horizontal offset of the inlet from the center of the bottom panel. Positive values move it right, negative values move it left.',min:-20,max:20,step:0.25},
  {k:'d',name:'Inlet position Y',hint:'',tip:'Vertical offset of the inlet from the point midway between the bottom edge of the panels and the sealing line. Positive values move it down, negative values move it up.',min:-10,max:10,step:0.25}
 ];
-const P={gL:4,wL:null,hL:null,HL:null,H:75,Hw:75,W:48,h:60,s:24,sw:24,g:4,d:0,dw:0,x:0,paper:'A4'};
+// State. Locks: wL / gL / hL / HL hold the locked value of Width / Panel gap / Height / Length (null = unlocked).
+// For Height (h = 2*s + 3*g), Length and Inlet Y, want* is the value the user last asked for and the plain value (s, H, d) is what currently fits after clamping.
+const P={gL:4,wL:null,hL:null,HL:null,H:75,wantH:75,W:48,h:60,s:24,wantS:24,g:4,d:0,wantD:0,x:0,paper:'A4'};
 const DEF={...P};
 const ICON_LOCK='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10.5" rx="2.5"/><circle cx="12" cy="15.75" r="1.3" fill="currentColor" stroke="none"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>';
 const ICON_RESET='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+// Push P[k] into the slider and number box (the box is left alone while being typed in); optionally set the allowed range (+-lim) and the lock state
+function syncField(k,o={}){
+ const r=document.getElementById('r_'+k),n=document.getElementById('n_'+k);
+ if(!r)return;
+ if(o.lim!=null){r.min=n.min=-o.lim;r.max=n.max=o.lim}
+ r.value=P[k];if(document.activeElement!==n)n.value=fmt(k,P[k]);
+ if(o.locked!=null){r.disabled=n.disabled=o.locked;lockUI(k,o.locked,o.name)}
+}
 const ICON_OPEN='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10.5" rx="2.5"/><circle cx="12" cy="15.75" r="1.3" fill="currentColor" stroke="none"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 6.4-2"/></svg>';
 function lockUI(k,on,name){const b=document.getElementById('lock_'+k);if(!b)return;b.innerHTML=on?ICON_LOCK:ICON_OPEN;b.setAttribute('aria-pressed',String(on));b.setAttribute('aria-label',(on?'Unlock ':'Lock ')+name);b.title=on?'Unlock '+name:'Lock '+name+' (keep '+name+' fixed while other settings change)';b.classList.toggle('on',on)}
 // Edit this list to change who is shown under About → Contributors. `url` is optional.
@@ -134,9 +159,10 @@ let page=1;
 const SEAL_LW=0.18, PANEL_LW=0.15, FOLD_LW=0.1, DASH=[1.5,1];
 
 const fmt=(k,v)=>'xd'.includes(k)?(+v).toFixed(2):v; // inlet position values always show 2 decimals
-function sw(p){return Math.max(1,p.s)}
+// Round x to a multiple of 1/n with the given rounding function (Math.floor / Math.round / Math.ceil)
+const snap=(fn,x,n)=>fn(x*n)/n;
 // Longest length allowed for the current settings: the sealing lines (one folding panel width + gap beyond each end of the panels) must still fit the paper height
-function hmFor(){return Math.min(150,Math.max(10,Math.floor((PAPERS[P.paper][1]-2*(P.s+P.g))*2)/2))}
+function hmFor(){return Math.min(150,Math.max(10,snap(Math.floor,PAPERS[P.paper][1]-2*(P.s+P.g),2)))}
 // Folding page width rule (6 panels: 2 Top/Bottom of width W + 4 folding of width s, 5 gaps g) must fit the paper width.
 // foldTotal is the rule itself; maxS / maxG are the same rule solved for s and g.
 const foldTotal=(W,s,g)=>2*W+4*s+5*g;
@@ -144,7 +170,7 @@ const maxS=(W,g)=>(PAPERS[P.paper][0]-2*W-5*g)/4;
 const maxG=(W,s)=>(PAPERS[P.paper][0]-2*W-4*s)/5;
 function build(p,pg){
  const [PW,PH]=PAPERS[p.paper], g=pg===2?p.g:0;
- const s=sw(p), ws=[p.W,s,s,p.W,s,s];
+ const s=p.s, ws=[p.W,s,s,p.W,s,s];
  const total=ws.reduce((a,b)=>a+b,0)+5*g;
  const x0=(PW-total)/2, y0=(PH-p.H)/2, it=[];
  const xs=[];let x=x0;ws.forEach(w=>{xs.push(x);x+=w+g});
@@ -210,7 +236,7 @@ function build(p,pg){
   arrow(ax1,my(ay1),ax2,my(ay2));
   arrow(mx(ax1),my(ay1),mx(ax2),my(ay2));
  });
- const off=sw(p)+p.g, yt=y0-off, yb=y0+p.H+off;
+ const off=p.s+p.g, yt=y0-off, yb=y0+p.H+off;
  [0,3].forEach(i=>{
   it.push({k:'line',x1:xs[i],y1:yt,x2:xs[i]+p.W,y2:yt,lw:SEAL_LW,dash:true});
   it.push({k:'line',x1:xs[i],y1:yb,x2:xs[i]+p.W,y2:yb,lw:SEAL_LW,dash:true});
@@ -238,21 +264,95 @@ function svg(p,pg,ink){
  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PW} ${PH}" width="${PW}mm" height="${PH}mm">${body}</svg>`;
 }
 
+// Preview: both pages are laid out on one grey canvas, Cutting on top and Folding below it (STACK_GAP apart), so zooming out shows both.
+// The tabs choose which page the view is centred on. z = magnification (1 = one page fills the view); (cx, cy) = centre of the visible part,
+// in units of one page's width / height, with y = 0 at the top of the Cutting page. The view can be panned until a strip of backdrop as wide as the gap
+// between the pages shows beyond the outer edges of the pages; zoomed out far enough to show the whole canvas, the canvas is simply centred.
+// Only the preview changes - the downloaded PDF / SVG never do.
+const VIEW={z:1,cx:.5,cy:.5,page:1},ZMIN=0.25,ZMAX=8,STACK_GAP=0.05; // STACK_GAP: gap between the pages as a fraction of a page's height
+const STACK_H=2+STACK_GAP,pageTop=n=>n===1?0:1+STACK_GAP,pageMid=n=>pageTop(n)+.5;
+const rangeFor=(size,margin)=>{const half=.5/VIEW.z,lo=half-margin,hi=size+margin-half;return lo<=hi?[lo,hi]:[size/2,size/2]};
+// Allowed (lo, hi) of the view centre along x and y. The outer margin equals the gap between the pages in mm, i.e. STACK_GAP page heights = STACK_GAP*PH/PW page widths sideways.
+const viewRanges=()=>{const [PW,PH]=PAPERS[P.paper];return [rangeFor(1,STACK_GAP*PH/PW),rangeFor(STACK_H,STACK_GAP)]};
+function clampView(){VIEW.z=Math.min(ZMAX,Math.max(ZMIN,VIEW.z))}
+// VIEW.cx / cy are the WANTED centre of the view; the centre actually shown is that centre clamped to what the current zoom allows.
+// So zooming out (which pulls the centre towards the middle of the canvas) and back in returns to where you were.
+const shownCentre=()=>{const [[xl,xh],[yl,yh]]=viewRanges();return {cx:Math.min(xh,Math.max(xl,VIEW.cx)),cy:Math.min(yh,Math.max(yl,VIEW.cy))}};
+const commitCentre=()=>{const c=shownCentre();VIEW.cx=c.cx;VIEW.cy=c.cy};
+// Switching tabs glides the view to the other page (instead of jumping); any zoom / pan / reset interrupts the glide.
+let glide=0;
+const stopGlide=()=>{if(glide){cancelAnimationFrame(glide);glide=0}};
+function glideTo(cy){
+ stopGlide();commitCentre();
+ const from=VIEW.cy,t0=performance.now(),dur=380;
+ if(Math.abs(cy-from)<1e-9||(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)){VIEW.cy=cy;return}
+ const step=now=>{
+  const t=Math.min(1,Math.max(0,(now-t0)/dur)),e=t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2; // ease in-out
+  VIEW.cy=from+(cy-from)*e;applyView();
+  glide=t<1?requestAnimationFrame(step):0;
+ };
+ glide=requestAnimationFrame(step);
+}
+const resetView=()=>{stopGlide();VIEW.z=1;VIEW.cx=.5;VIEW.cy=pageMid(page);applyView()};
+function previewSvg(){
+ const [PW,PH]=PAPERS[P.paper],names=['','Cutting','Folding'];
+ const inner=n=>{const t=svg(P,n,'#000');return t.slice(t.indexOf('>')+1,t.lastIndexOf('</svg>'))};
+ const pg=n=>`<g transform="translate(0 ${pageTop(n)*PH})"><text x="0" y="-2.5" font-family="Helvetica,Arial,sans-serif" font-size="5" fill="#6b6b6b">${names[n]}</text><rect x="0" y="0" width="${PW}" height="${PH}" fill="#fff" stroke="#8a8a8a" stroke-width="0.4"/>${inner(n)}</g>`;
+ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PW} ${PH}">${pg(1)}${pg(2)}</svg>`;
+}
+function applyView(){
+ if(VIEW.page!==page){VIEW.page=page;glideTo(pageMid(page))} // switching tabs glides the view to that page (zoom is kept)
+ clampView();
+ const sh=document.getElementById('sheet'),el=sh.querySelector('svg'),c=shownCentre();
+ if(el){const [PW,PH]=PAPERS[P.paper],f=1/VIEW.z;
+  el.setAttribute('viewBox',`${(c.cx-f/2)*PW} ${(c.cy-f/2)*PH} ${f*PW} ${f*PH}`)}
+ const [[xl,xh],[yl,yh]]=viewRanges();
+ sh.classList.toggle('zoomed',VIEW.z>1); // touch drags pan only when zoomed in, so a finger can still scroll the page at 100%
+ sh.classList.toggle('pannable',xl<xh||yl<yh);
+ const set=(id,fn)=>{const b=document.getElementById(id);if(b)fn(b)};
+ set('zfit',b=>b.textContent=Math.round(VIEW.z*100)+'%');
+ set('zin',b=>b.disabled=VIEW.z>=ZMAX-1e-9);
+ set('zout',b=>b.disabled=VIEW.z<=ZMIN+1e-9);
+}
+// The selected tab follows the view: once the centre of the view crosses the middle of the gap between the pages, the tab switches
+// (at the exact middle, e.g. when the whole canvas is shown, the current tab stays).
+function syncTabToView(){
+ const mid=1+STACK_GAP/2,cy=shownCentre().cy,want=cy>mid+1e-9?2:cy<mid-1e-9?1:page;
+ if(want===page)return;
+ page=VIEW.page=want;
+ document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',String(+t.dataset.pg===page)));
+}
+// Magnify by factor k, keeping the sheet point under (fx, fy) (fractions of the visible area) where it is on screen
+function zoomAt(k,fx=.5,fy=.5){
+ stopGlide();
+ const [,[yl,yh]]=viewRanges();
+ if(yl>=yh&&k>1){ // the whole canvas is on screen: zooming in goes to the selected page, not to the cursor or the middle of the gap
+  VIEW.cy=pageMid(page);VIEW.z*=k;
+ }else if(fx===.5&&fy===.5){ // centred zoom (buttons) keeps the wanted centre
+  VIEW.z*=k;
+ }else{
+  const c=shownCentre(),f0=1/VIEW.z,px=c.cx-f0/2+fx*f0,py=c.cy-f0/2+fy*f0;
+  VIEW.z*=k;clampView();
+  const f1=1/VIEW.z;VIEW.cx=px-fx*f1+f1/2;VIEW.cy=py-fy*f1+f1/2;
+ }
+ applyView();syncTabToView();
+}
+
 // Height is locked: adjust Panel gap (and Width, unless locked) so the locked Height still fits. Returns false if it cannot be kept.
 function keepLockedHeight(){
  const PWd=PAPERS[P.paper][0],h=P.hL,gFix=P.gL!=null;
- const gHi=Math.floor(Math.min(8,(h-8)/3)*4)/4;
+ const gHi=snap(Math.floor,Math.min(GAP_MAX,(h-8)/3),4);
  const gForLen=P.HL!=null?h-(PAPERS[P.paper][1]-P.HL):-Infinity; // Length locked: 2*(folding panel width + gap) = h - g must fit what the paper leaves beside the Length
- const gStart=gFix?P.g:Math.min(gHi,Math.max(0,Math.round(P.g*4)/4));
+ const gStart=gFix?P.g:Math.min(gHi,Math.max(GAP_MIN,snap(Math.round,P.g,4)));
  // 1) Keep Width as is and hold only the gap inside the range that still works with it (not while Width itself is being dragged)
- if(P.mv!=='W'){
-  const gLo=Math.ceil(Math.max(0,(h-P.W)/3,2*P.W+2*h-PWd,gForLen)*4)/4;
+ if(P.mv!=='W'&&!(P.mv==='g'&&P.wL==null)){
+  const gLo=snap(Math.ceil,Math.max(GAP_MIN,(h-P.W)/3,2*P.W+2*h-PWd,gForLen),4);
   if(gFix){if(P.g>=gLo-1e-9&&P.g<=gHi+1e-9)return true}
   else if(gLo<=gHi){P.g=Math.min(gHi,Math.max(gLo,gStart));return true}
  }
  // 2) Otherwise move Width too (unless locked): use the smallest gap, from the current one upward, for which some Width works
- if(P.wL==null)for(let g=gStart;g<=(gFix?P.g:gHi)+1e-9;g=Math.round((g+0.25)*4)/4){
-  const wl=Math.ceil(Math.max(10,h-3*g)*2)/2,wh=Math.min(100,Math.floor(PWd-2*h+g)/2);
+ if(P.wL==null)for(let g=gStart;g<=(gFix?P.g:gHi)+1e-9;g=snap(Math.round,g+0.25,4)){
+  const wl=snap(Math.ceil,Math.max(10,h-3*g),2),wh=Math.min(100,Math.floor(PWd-2*h+g)/2);
   if(wl<=wh&&g>=gForLen-1e-9){P.g=g;P.W=Math.min(wh,Math.max(wl,P.W));return true}
  }
  return false;
@@ -261,55 +361,56 @@ function keepLockedHeight(){
 function render(){
  if(P.gL!=null)P.g=P.gL;
  if(P.wL!=null)P.W=P.wL;
- if(P.HL!=null)P.Hw=P.HL;
+ if(P.HL!=null)P.wantH=P.HL;
  // Height lock: keep Height fixed; the folding panel width follows from Height and Panel gap
  if(P.hL!=null){
-  if(keepLockedHeight())P.sw=(P.hL-3*P.g)/2;
+  if(keepLockedHeight())P.wantS=(P.hL-3*P.g)/2;
   else{P.hL=null;note('Height was unlocked because it cannot be kept with these settings.',true)}
  }
- {const PWd=PAPERS[P.paper][0],gm0=P.gL!=null?P.gL:0.5,useMin=P.hL==null&&P.mv==='W',
+
+ // gLow: the gap the layout can count on at least: the locked gap, or the smallest gap an unlocked gap can shrink to
+ {const PWd=PAPERS[P.paper][0],gLow=P.gL!=null?P.gL:(P.mv==='g'?P.g:GAP_MIN),useMin=P.hL==null&&(P.mv==='W'||P.mv==='g'),
   // Width being dragged with Height unlocked: Width may use the whole slider range, because Height shrinks as needed. Otherwise (e.g. Height being dragged) Width gives way instead
-  need=w=>{const s=Math.min(w/2,useMin?4:Math.max(4,P.sw));return foldTotal(w,s,gm0)};
-  let wm=100;while(wm>10&&need(wm)>PWd)wm=Math.round((wm-0.5)*2)/2;
+  need=w=>{const s=Math.min(w/2,useMin?4:Math.max(4,P.wantS));return foldTotal(w,s,gLow)};
+  let wm=100;while(wm>10&&need(wm)>PWd)wm=snap(Math.round,wm-0.5,2);
   P.W=P.wL!=null?P.wL:Math.min(wm,Math.max(10,P.W));
   if(P.hL==null){ // Height unlocked: the folding panel width may never grow beyond what still fits the paper width (matters when Width and/or Panel gap are locked)
-   const gb=P.gL!=null?P.gL:(useMin?gm0:0),smax=Math.floor(maxS(P.W,gb)*1000)/1000;if(P.sw>smax)P.sw=Math.max(4,smax)
+   const smax=snap(Math.floor,maxS(P.W,gLow),1000);if(P.wantS>smax)P.wantS=Math.max(4,smax)
    // Length locked, or Length being dragged: the folding panel width gives way so that the sealing lines still fit the paper height
-   const lenWant=P.HL!=null?P.HL:(P.mv==='H'?P.Hw:null);
-   if(lenWant!=null){const sLen=Math.floor(((PAPERS[P.paper][1]-lenWant)/2-P.g)*1000)/1000;if(P.sw>sLen)P.sw=Math.max(4,sLen)}}
-  const rw=document.getElementById('r_W'),nw=document.getElementById('n_W');
-  if(rw){rw.value=P.W;if(document.activeElement!==nw)nw.value=P.W;rw.disabled=nw.disabled=P.wL!=null;lockUI('W',P.wL!=null,'Width')}}
- P.s=Math.min(P.W/2,Math.max(4,P.sw));
+   const lenWant=P.HL!=null?P.HL:(P.mv==='H'?P.wantH:null);
+   if(lenWant!=null){const sLen=snap(Math.floor,(PAPERS[P.paper][1]-lenWant)/2-P.g,1000);if(P.wantS>sLen)P.wantS=Math.max(4,sLen)}}
+  syncField('W',{locked:P.wL!=null,name:'Width'})}
+ P.s=Math.min(P.W/2,Math.max(4,P.wantS));
  // Largest panel gap for which the Folding page (5 gaps between 6 panels) still fits the paper width
- {const gm=Math.min(8,Math.max(0,Math.floor((maxG(P.W,P.s)-1e-9)*4)/4));
-  if(P.hL==null&&P.gL==null)P.g=Math.min(gm,Math.max(0,P.g));
-  const rg=document.getElementById('r_g'),ng=document.getElementById('n_g');
-  if(rg){rg.value=P.g;if(document.activeElement!==ng)ng.value=P.g;rg.disabled=ng.disabled=P.gL!=null;lockUI('g',P.gL!=null,'Panel gap')}}
+ {const gm=Math.min(GAP_MAX,Math.max(GAP_MIN,snap(Math.floor,maxG(P.W,P.s)+(P.mv==='g'?1e-9:-1e-9),4)));
+  if(P.hL==null&&P.gL==null){
+   P.g=Math.min(gm,Math.max(GAP_MIN,P.g));
+   // Length locked: the sealing lines need 2*(folding panel width + gap) of paper height beside it, and the folding panel width cannot go below 4
+   if(P.HL!=null)P.g=Math.min(P.g,Math.max(GAP_MIN,snap(Math.floor,(PAPERS[P.paper][1]-P.HL)/2-4,4)));
+  }
+  syncField('g',{locked:P.gL!=null,name:'Panel gap'})}
  // Longest length for which the sealing lines (one folding panel width + gap beyond each end of the panels) still fit the paper height
  if(P.HL!=null&&PAPERS[P.paper][1]-2*(P.s+P.g)<P.HL-1e-6){P.HL=null;note('Length was unlocked because it cannot be kept with these settings.',true)}
  {const hm=hmFor();
-  P.H=P.HL!=null?P.HL:Math.min(hm,Math.max(10,P.Hw));
-  const rH=document.getElementById('r_H'),nH=document.getElementById('n_H');
-  if(rH){rH.value=P.H;if(document.activeElement!==nH)nH.value=P.H;rH.disabled=nH.disabled=P.HL!=null;lockUI('H',P.HL!=null,'Length')}}
+  P.H=P.HL!=null?P.HL:Math.min(hm,Math.max(10,P.wantH));
+  syncField('H',{locked:P.HL!=null,name:'Length'})}
  P.s=Math.min(P.s,(75-3*P.g)/2);P.h=Math.round((2*P.s+3*P.g)*1e4)/1e4;
- const rh=document.getElementById('r_h'),nh=document.getElementById('n_h');
- if(rh){rh.value=P.h;if(document.activeElement!==nh)nh.value=P.h;rh.disabled=nh.disabled=P.hL!=null;lockUI('h',P.hL!=null,'Height')}
+ syncField('h',{locked:P.hL!=null,name:'Height'});
  {const hl=document.getElementById('hint_H');if(hl)hl.textContent=PAPERS[P.paper][1]-2*(P.s+P.g)-P.H<0.5-1e-6?'Folding page has reached the paper length.':''}
  {const hh=document.getElementById('hint_h');if(hh){const msgs=[];
   if(PAPERS[P.paper][0]-build(P,2).need[0]<1-1e-6)msgs.push('Folding page has reached the paper width.');
   hh.innerHTML=msgs.join('<br>')}}
- const hi=Math.max(1,Math.floor(((sw(P)+P.g)/2-6.3)*4)/4);P.d=Math.min(hi,Math.max(-hi,P.dw));
- const rd=document.getElementById('r_d'),nd=document.getElementById('n_d');
- if(rd){rd.min=nd.min=-hi;rd.max=nd.max=hi;rd.value=P.d;if(document.activeElement!==nd)nd.value=fmt('d',P.d)}
- const xhi=Math.max(1,Math.floor((P.W/2-2.4)*4)/4);P.x=Math.min(xhi,Math.max(-xhi,P.x));
- const rx=document.getElementById('r_x'),nx=document.getElementById('n_x');
- if(rx){rx.min=nx.min=-xhi;rx.max=nx.max=xhi;rx.value=P.x;if(document.activeElement!==nx)nx.value=fmt('x',P.x)}
+ const hi=Math.max(1,snap(Math.floor,(P.s+P.g)/2-6.3,4));P.d=Math.min(hi,Math.max(-hi,P.wantD));
+ syncField('d',{lim:hi});
+ const xhi=Math.max(1,snap(Math.floor,P.W/2-2.4,4));P.x=Math.min(xhi,Math.max(-xhi,P.x));
+ syncField('x',{lim:xhi});
  const sh=document.getElementById('sheet');
- sh.innerHTML=svg(P,page,'#000').replace(/ width="[\d.]+mm" height="[\d.]+mm"/,'');
+ sh.innerHTML=previewSvg();
+ applyView();
  const [PW,PH]=PAPERS[P.paper],m=document.getElementById('msg');
  ['H','W','h','g','d','x'].forEach(k=>{const b=document.getElementById('x_'+k);if(b)b.disabled=Math.abs(P[k]-DEF[k])<1e-3||({W:P.wL,h:P.hL,g:P.gL,H:P.HL})[k]!=null});
  const bad=[];
- [1,2].forEach(n=>{const r=build(P,n).need;if(r[0]>PW||r[1]>PH)bad.push(n)});
+ [1,2].forEach(n=>{const r=build(P,n).need;if(r[0]>PW+1e-6||r[1]>PH+1e-6)bad.push(n)});
  if(bad.length){m.className='bad';m.textContent='Page '+bad.join(' and ')+' is larger than '+P.paper+' landscape ('+PW+' × '+PH+' mm). Reduce a dimension or choose a bigger paper size.'}
  else if(!m.dataset.keep){m.className='';m.textContent=''}
  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',String(+t.dataset.pg===page)));
@@ -367,7 +468,7 @@ function name(ext,tag){return `actuator-stencil-${P.W}x${P.H}-h${P.h}-g${P.g}${t
  c.innerHTML=grp('Actuator dimensions',['H','W','h'])+adv();
  FIELDS.forEach(f=>{
   const r=document.getElementById('r_'+f.k),n=document.getElementById('n_'+f.k);
-  const set=v=>{v=parseFloat(v);if(!isFinite(v))return false;P[f.k]=Math.min(+r.max,Math.max(+r.min,v));if(f.k==='h'){if(P.wL==null)P.W=Math.max(P.W,Math.min(100,Math.ceil((P.h-3*P.g)*2)/2));P.h=Math.min(P.h,P.W+3*P.g)}if(f.k==='H')P.Hw=P.hL==null?P.H:Math.min(P.H,hmFor());if(f.k==='d')P.dw=P.d;if(f.k==='h')P.sw=Math.max(4,(P.h-3*P.g)/2);P.mv=f.k;return true};
+  const set=v=>{v=parseFloat(v);if(!isFinite(v))return false;P[f.k]=Math.min(+r.max,Math.max(+r.min,v));if(f.k==='h'){if(P.wL==null)P.W=Math.max(P.W,Math.min(100,snap(Math.ceil,P.h-3*P.g,2)));P.h=Math.min(P.h,P.W+3*P.g)}if(f.k==='H')P.wantH=P.hL==null?P.H:Math.min(P.H,hmFor());if(f.k==='d')P.wantD=P.d;if(f.k==='h')P.wantS=Math.max(4,(P.h-3*P.g)/2);P.mv=f.k;return true};
   r.addEventListener('input',()=>{set(r.value);n.value=fmt(f.k,P[f.k]);render()});
   n.addEventListener('input',()=>{if(set(n.value)){r.value=P[f.k];render()}});
   n.addEventListener('change',()=>{n.value=fmt(f.k,P[f.k])});
@@ -381,13 +482,24 @@ function name(ext,tag){return `actuator-stencil-${P.W}x${P.H}-h${P.h}-g${P.g}${t
    hh.addEventListener('click',go);
    hh.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}})}});
  const lk=document.getElementById('lock_h');
- if(lk)lk.addEventListener('click',()=>{P.mv=null;if(P.hL==null){P.hL=P.h}else{P.hL=null;P.sw=P.s}render()});
- const lkH=document.getElementById('lock_H');
- if(lkH)lkH.addEventListener('click',()=>{P.mv=null;P.HL=P.HL==null?P.H:null;render()});
- const lkG=document.getElementById('lock_g');
- if(lkG)lkG.addEventListener('click',()=>{P.mv=null;P.gL=P.gL==null?P.g:null;render()});
- const lkW=document.getElementById('lock_W');
- if(lkW)lkW.addEventListener('click',()=>{P.mv=null;P.wL=P.wL==null?P.W:null;render()});
+ if(lk)lk.addEventListener('click',()=>{P.mv=null;if(P.hL==null){P.hL=P.h}else{P.hL=null;P.wantS=P.s}render()});
+ // Preview zoom: buttons, Ctrl/⌘ + scroll (also trackpad pinch), drag to pan, double-click to zoom in / reset
+ {const sh=document.getElementById('sheet'),on=(id,fn)=>{const b=document.getElementById(id);if(b)b.addEventListener('click',fn)};
+  const frac=e=>{const r=(sh.querySelector('svg')||sh).getBoundingClientRect();return r.width&&r.height?[(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]:[.5,.5]};
+  on('zin',()=>zoomAt(1.5));on('zout',()=>zoomAt(1/1.5));on('zfit',resetView);
+  sh.addEventListener('wheel',e=>{if(!(e.ctrlKey||e.metaKey))return;e.preventDefault();const [fx,fy]=frac(e);zoomAt(Math.exp(-e.deltaY*(e.deltaMode===1?0.05:0.0025)),fx,fy)},{passive:false});
+  sh.addEventListener('dblclick',e=>{const [fx,fy]=frac(e);const c=shownCentre();if(VIEW.z!==1||c.cx!==.5||c.cy!==pageMid(page))resetView();else zoomAt(2.5,fx,fy)});
+  let drag=null;
+  sh.addEventListener('pointerdown',e=>{if(!sh.classList.contains('pannable')||e.button!==0)return;stopGlide();drag={x:e.clientX,y:e.clientY};sh.setPointerCapture(e.pointerId);sh.classList.add('panning')});
+  sh.addEventListener('pointermove',e=>{if(!drag)return;const r=(sh.querySelector('svg')||sh).getBoundingClientRect();if(!r.width||!r.height)return;
+   const f=1/VIEW.z;commitCentre();VIEW.cx-=(e.clientX-drag.x)/r.width*f;VIEW.cy-=(e.clientY-drag.y)/r.height*f;commitCentre();drag.x=e.clientX;drag.y=e.clientY;applyView();syncTabToView()});
+  const stop=()=>{drag=null;sh.classList.remove('panning')};
+  sh.addEventListener('pointerup',stop);sh.addEventListener('pointercancel',stop);}
+ // Lock buttons for Length, Panel gap and Width: lock at the current value, or unlock
+ [['H','HL'],['g','gL'],['W','wL']].forEach(([k,lk])=>{
+  const b=document.getElementById('lock_'+k);
+  if(b)b.addEventListener('click',()=>{P.mv=null;P[lk]=P[lk]==null?P[k]:null;render()});
+ });
  document.getElementById('paper').addEventListener('change',e=>{P.mv=null;P.paper=e.target.value;render()});
  // Any interaction with the Advanced section (summary, sliders, number fields, reset buttons) shows the Folding tab
  const advEl=c.querySelector('details.grp');
