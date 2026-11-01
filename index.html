@@ -156,6 +156,7 @@ const CONTRIBUTORS=[
  {name:'Yoon Jong-hwan',role:'',url:''}
 ];
 let page=1;
+const CHAMFER=1; // mm cut off each corner of a panel (a 45-degree cut of CHAMFER mm on each leg)
 const SEAL_LW=0.18, PANEL_LW=0.15, FOLD_LW=0.1, DASH=[1.5,1];
 
 // Number boxes: while a slider is being dragged every value shows a fixed number of decimals (so digits don't jump around);
@@ -172,13 +173,23 @@ function hmFor(){return Math.min(150,Math.max(10,snap(Math.floor,PAPERS[P.paper]
 const foldTotal=(W,s,g)=>2*W+4*s+5*g;
 const maxS=(W,g)=>(PAPERS[P.paper][0]-2*W-5*g)/4;
 const maxG=(W,s)=>(PAPERS[P.paper][0]-2*W-4*s)/5;
+// Outline of a panel with its four corners chamfered by c (a 45-degree cut of c mm on each leg)
+const chamfered=(x,y,w,h,c)=>[[x+c,y],[x+w-c,y],[x+w,y+c],[x+w,y+h-c],[x+w-c,y+h],[x+c,y+h],[x,y+h-c],[x,y+c]];
+// Outline of the Cutting page's strip of touching panels with every panel's corners chamfered: the outer corners are cut, and each joint between two panels gets a V notch
+const stripOutline=(xs,ws,y,h,c)=>{
+ const pts=[[xs[0],y+c]];
+ xs.forEach((x,i)=>pts.push([x+c,y],[x+ws[i]-c,y],[x+ws[i],y+c]));
+ pts.push([xs[xs.length-1]+ws[ws.length-1],y+h-c]); // down the right edge to the start of the bottom-right chamfer
+ for(let i=xs.length-1;i>=0;i--)pts.push([xs[i]+ws[i]-c,y+h],[xs[i]+c,y+h],[xs[i],y+h-c]);
+ return pts;
+};
 function build(p,pg){
  const [PW,PH]=PAPERS[p.paper], g=pg===2?p.g:0;
  const s=p.s, ws=[p.W,s,s,p.W,s,s];
  const total=ws.reduce((a,b)=>a+b,0)+5*g;
  const x0=(PW-total)/2, y0=(PH-p.H)/2, it=[];
  const xs=[];let x=x0;ws.forEach(w=>{xs.push(x);x+=w+g});
- [0,3].forEach(i=>it.push({k:'rect',x:xs[i],y:y0,w:p.W,h:p.H,fill:'#f2f2f2'}));
+ [0,3].forEach(i=>it.push({k:'poly',pts:chamfered(xs[i],y0,p.W,p.H,CHAMFER),fill:'#f2f2f2'}));
  // Vertical panel label: the word "panel" goes on a second line; if the panel is too narrow for two lines, only the first word is shown
  const label=(cx,pw,first)=>{
   const cy=y0+p.H/2;
@@ -188,8 +199,8 @@ function build(p,pg){
  [0,3].forEach(i=>label(xs[i]+p.W/2,p.W,'Top / Bottom'));
  [1,2,4,5].forEach(i=>label(xs[i]+s/2,s,'Folding'));
  if(pg===1){
-  it.push({k:'rect',x:x0,y:y0,w:total,h:p.H,lw:PANEL_LW});
-  for(let i=1;i<6;i++)it.push({k:'line',x1:xs[i],y1:y0,x2:xs[i],y2:y0+p.H,lw:PANEL_LW});
+  it.push({k:'poly',pts:stripOutline(xs,ws,y0,p.H,CHAMFER),lw:PANEL_LW});
+  for(let i=1;i<6;i++)it.push({k:'line',x1:xs[i],y1:y0+CHAMFER,x2:xs[i],y2:y0+p.H-CHAMFER,lw:PANEL_LW});
   const inT=y0<13, inL=x0<13, inB=y0<14; // dimension no longer fits outside the panels -> draw it inside
   const dy=inT?y0+8:y0-9, xr=x0+total, ar=2.2, ab=0.7, dl=0.15;
   [[x0,1],[xr,-1]].forEach(([ex,s])=>{
@@ -223,7 +234,7 @@ function build(p,pg){
   dim(xs[1],xs[1]+s,s,true,'',true);
   return {it,PW,PH,need:[total,p.H]};
  }
- ws.forEach((w,i)=>it.push({k:'rect',x:xs[i],y:y0,w,h:p.H,lw:PANEL_LW}));
+ ws.forEach((w,i)=>it.push({k:'poly',pts:chamfered(xs[i],y0,w,p.H,CHAMFER),lw:PANEL_LW}));
  [1,2,4].forEach(i=>{const fx=xs[i]+ws[i]+g/2;it.push({k:'line',x1:fx,y1:y0,x2:fx,y2:y0+p.H,lw:FOLD_LW})});
  // fold arrows: slanted arrows per folding panel, mirrored across the fold line of each pair (1&2, 4&5) and across the panel's horizontal midline (top/bottom)
  const arrow=(x1,y1,x2,y2)=>{
@@ -262,6 +273,7 @@ function svg(p,pg,ink){
  const body=it.map(o=>{
   if(o.k==='rect')return o.fill?`<rect x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" fill="${o.fill}" stroke="none"/>`:`<rect x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" fill="none" stroke="${ink}" stroke-width="${o.lw}"/>`;
   if(o.k==='line')return `<line x1="${o.x1}" y1="${o.y1}" x2="${o.x2}" y2="${o.y2}" stroke="${ink}" stroke-width="${o.lw}"${o.dash?` stroke-dasharray="${d}"`:''}/>`;
+  if(o.k==='poly'){const pts=o.pts.map(q=>q.join(',')).join(' ');return o.fill?`<polygon points="${pts}" fill="${o.fill}" stroke="none"/>`:`<polygon points="${pts}" fill="none" stroke="${ink}" stroke-width="${o.lw}"/>`}
   if(o.k==='circle')return `<circle cx="${o.cx}" cy="${o.cy}" r="${o.r}" fill="none" stroke="${ink}" stroke-width="${o.lw}"/>`;
   return `<text x="${o.x}" y="${o.y}"${o.rot?` transform="rotate(-90 ${o.x} ${o.y})"`:''} text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="3.175" fill="${ink}">${o.t}</text>`;
  }).join('');
@@ -434,6 +446,11 @@ function pdf(which){
    if(o.lw)doc.setLineWidth(o.lw);
    doc.setLineDashPattern(o.dash?DASH:[],0);
    if(o.k==='rect'){if(o.fill){doc.setFillColor(242,242,242);doc.rect(o.x,o.y,o.w,o.h,'F')}else doc.rect(o.x,o.y,o.w,o.h,'S')}
+   else if(o.k==='poly'){ // closed polygon: jsPDF wants the first point plus relative steps
+    const [a,...r]=o.pts,rel=r.map((q,i)=>[q[0]-(i?r[i-1][0]:a[0]),q[1]-(i?r[i-1][1]:a[1])]);
+    if(o.fill)doc.setFillColor(242,242,242);
+    doc.lines(rel,a[0],a[1],[1,1],o.fill?'F':'S',true);
+   }
    else if(o.k==='line')doc.line(o.x1,o.y1,o.x2,o.y2);
    else if(o.k==='circle')doc.circle(o.cx,o.cy,o.r,'S');
    else doc.text(o.t,o.x,o.y,o.rot?{align:'center',angle:90}:{align:'center'});
