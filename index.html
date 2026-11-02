@@ -597,7 +597,18 @@ function name(ext,tag){return `actuator-stencil-${P.W}x${P.H}-h${P.h}-g${P.g}${t
  {const sh=document.getElementById('sheet'),on=(id,fn)=>{const b=document.getElementById(id);if(b)b.addEventListener('click',fn)};
   const frac=e=>{const r=(sh.querySelector('svg')||sh).getBoundingClientRect();return r.width&&r.height?[(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]:[.5,.5]};
   on('zin',()=>zoomAt(1.5));on('zout',()=>zoomAt(1/1.5));on('zfit',resetView);
-  sh.addEventListener('wheel',e=>{if(!(e.ctrlKey||e.metaKey))return;e.preventDefault();const [fx,fy]=frac(e);zoomAt(Math.exp(-e.deltaY*(e.deltaMode===1?0.05:0.0025)),fx,fy)},{passive:false});
+  // Wheel: Ctrl/Cmd + wheel (or trackpad pinch) zooms; plain wheel scrolls the view up / down (Shift + wheel or sideways scrolling: left / right).
+  // At the end of the canvas the wheel is left alone, so the page itself can scroll on.
+  sh.addEventListener('wheel',e=>{
+   if(e.ctrlKey||e.metaKey){e.preventDefault();stopGlide();const [fx,fy]=frac(e);zoomAt(Math.exp(-e.deltaY*(e.deltaMode===1?0.05:0.0025)),fx,fy);return}
+   const r=(sh.querySelector('svg')||sh).getBoundingClientRect();if(!r.width||!r.height)return;
+   const unit=e.deltaMode===1?16:(e.deltaMode===2?r.height:1); // lines / pages -> pixels
+   let dx=e.deltaX*unit,dy=e.deltaY*unit;if(e.shiftKey&&!dx){dx=dy;dy=0}
+   const f=1/VIEW.z;commitCentre();const x0=VIEW.cx,y0=VIEW.cy;
+   VIEW.cx+=dx/r.width*f;VIEW.cy+=dy/r.height*f;commitCentre();
+   if(Math.abs(VIEW.cx-x0)<1e-9&&Math.abs(VIEW.cy-y0)<1e-9)return; // nothing left to scroll
+   e.preventDefault();stopGlide();applyView();syncTabToView();
+  },{passive:false});
   sh.addEventListener('dblclick',e=>{const [fx,fy]=frac(e);const c=shownCentre();if(VIEW.z!==1||c.cx!==.5||c.cy!==pageMid(page))resetView();else zoomAt(2.5,fx,fy)});
   let drag=null;
   sh.addEventListener('pointerdown',e=>{if(!sh.classList.contains('pannable')||e.button!==0)return;stopGlide();drag={x:e.clientX,y:e.clientY};sh.setPointerCapture(e.pointerId);sh.classList.add('panning')});
