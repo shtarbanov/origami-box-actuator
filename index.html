@@ -11,9 +11,11 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171d;--panel:#1d212a;--ink:#e8e9ee;--mute:#9aa1b2;--line:#323846;--acc:#6aa3ff;--accfg:#0c1220;--warn:#ff8f78}}
 :root[data-theme="dark"]{--bg:#14171d;--panel:#1d212a;--ink:#e8e9ee;--mute:#9aa1b2;--line:#323846;--acc:#6aa3ff;--accfg:#0c1220;--warn:#ff8f78}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{overscroll-behavior:none}
+.sheet{overscroll-behavior:contain}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Avenir Next","Segoe UI",system-ui,sans-serif}
-.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 40px;display:grid;grid-template-columns:370px minmax(0,1fr);gap:20px}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 0;display:grid;grid-template-columns:370px minmax(0,1fr);gap:20px}
 @media(max-width:820px){.wrap{grid-template-columns:1fr}}
 h1{font:600 22px/1.2 Georgia,"Iowan Old Style",serif;margin:0 0 16px}
 .sub{color:var(--mute);margin:0 0 16px;font-size:14px}
@@ -66,7 +68,7 @@ details.grp[open] summary{margin-bottom:8px}
 .sheet.zoomed{touch-action:none}
 .zc{position:absolute;right:10px;bottom:10px;display:flex;gap:4px;padding:3px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .zc .rst{min-width:36px;font-variant-numeric:tabular-nums}
-.ft{max-width:1180px;margin:-16px auto 0;padding:0 16px 24px;text-align:center}
+.ft{max-width:1180px;margin:0 auto;padding:0 16px 8px;text-align:center;line-height:1.2}
 .lnk{border:0;background:transparent;color:var(--acc);font:inherit;font-size:14px;cursor:pointer;padding:2px 0;text-decoration:underline}
 dialog.about{width:min(640px,calc(100% - 24px));max-height:calc(100% - 48px);border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:0;overflow:hidden}
 dialog.about[open]{display:flex;flex-direction:column}
@@ -99,8 +101,8 @@ dialog.about::backdrop{background:rgba(0,0,0,.45)}
  </section>
  <section>
   <div class="tabs">
-   <button class="tab" role="tab" data-pg="1" aria-selected="true">Cutting</button>
-   <button class="tab" role="tab" data-pg="2" aria-selected="false">Folding</button>
+   <button class="tab" role="tab" data-pg="1" aria-selected="true">Cutting stencil</button>
+   <button class="tab" role="tab" data-pg="2" aria-selected="false">Folding stencil</button>
    <span class="sp"></span>
    <select id="paper" aria-label="Paper size (landscape)" title="Paper size (landscape)"><option>A4</option><option>Letter</option><option>A3</option></select>
    <button class="eye" id="scaleguide" type="button" aria-pressed="true" aria-label="Scale guide"></button>
@@ -318,7 +320,7 @@ function glideTo(cy){
 }
 const resetView=()=>{stopGlide();VIEW.z=1;VIEW.cx=.5;VIEW.cy=pageMid(page);applyView()};
 function previewSvg(){
- const [PW,PH]=PAPERS[P.paper],names=['','Cutting','Folding'];
+ const [PW,PH]=PAPERS[P.paper],names=['','Cutting stencil','Folding stencil'];
  const inner=n=>{const t=svg(P,n,'#000');return t.slice(t.indexOf('>')+1,t.lastIndexOf('</svg>'))};
  const pg=n=>`<g transform="translate(0 ${pageTop(n)*PH})"><text x="0" y="-2.5" font-family="Helvetica,Arial,sans-serif" font-size="5" fill="#6b6b6b">${names[n]}</text><rect x="0" y="0" width="${PW}" height="${PH}" fill="#fff" stroke="#8a8a8a" stroke-width="0.4"/>${inner(n)}${scaleGuideOn()?scaleGuideSvg(build(P,n).it,PW,PH):''}</g>`;
  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PW} ${PH}">${pg(1)}${pg(2)}</svg>`;
