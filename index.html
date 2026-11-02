@@ -123,7 +123,7 @@ dialog.about::backdrop{background:rgba(0,0,0,.45)}
 </div>
 <footer class="ft"><button type="button" class="lnk" id="aboutBtn">About</button></footer>
 <dialog class="about" id="about" aria-labelledby="about-h">
- <div class="ab-h"><h2 id="about-h">About</h2><button type="button" class="btn alt" id="aboutClose">Close</button></div>
+ <div class="ab-h"><h2 id="about-h">About</h2><button type="button" class="btn alt ic" id="aboutClose" aria-label="Close" title="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
  <div class="ab-b">
   <p>This tool generates printable cutting and folding stencils for making an origami-based chamber actuator as explained in this <a href="https://www.softrobotics.io/post/origami-based-chamber-actuators" target="_blank" rel="noopener noreferrer">tutorial</a> on the SoftRobotics.IO website.</p>
   <details><summary>Contributors</summary>
@@ -652,7 +652,7 @@ function name(ext,tag){return `actuator-stencil-${P.W}x${P.H}-h${P.h}-g${P.g}${t
  });
  document.getElementById('aboutBtn').addEventListener('click',()=>dlg.showModal());
  document.getElementById('aboutClose').addEventListener('click',()=>dlg.close());
- dlg.addEventListener('click',e=>{if(e.target===dlg)dlg.close()});
+ dlg.addEventListener('click',e=>{if(!e.clientX&&!e.clientY)return;const r=dlg.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dlg.close()});
 })();
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{page=+t.dataset.pg;render()}));
 document.getElementById('dlpdf').addEventListener('click',()=>{
