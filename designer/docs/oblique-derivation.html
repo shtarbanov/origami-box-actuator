@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Compound box tilt</title><style>body{max-width:800px;margin:45px auto;padding:0 20px;font:16px/1.7 system-ui;color:#263d32}code,pre{background:#f2f5ef}pre{padding:16px;overflow:auto}h1,h2{font-weight:500}a{color:#426d50}</style>
+<h1>Compound box tilt</h1><p>This construction extends one box with independently specified front-edge left/right heights. It changes the side-panel shapes as well as the top pose. All dimensions refer to virtual hinge axes. Film and sealing performance remain unverified.</p>
+<h2>Reference top</h2><p>Let the front/rear bottom widths be W₀, W₁, length L, maximum top-edge heights h₀, h₁ and front right/left height ratio r. The congruent top is obtained by a rigid rotation around a stationary horizontal axis in the bottom plane.</p>
+<pre>left₀ = h₀ / max(1,r)        right₀ = r × left₀
+sx = (right₀ − left₀) / W₀
+sy = (h₁ − h₀ − |sx|(W₁ − W₀)/2) / L
+z₀ = (left₀ + right₀)/2
+s = sqrt(sx² + sy²)         θ = asin(s)
+u = (sy, −sx, 0)/s         Q = −z₀(sx,sy,0)/s²
+top(b,p) = Q + R(u,pθ)(b − Q)</pre>
+<p>Q lies in the base plane and u is the fixed rotation-axis direction. The horizontal component of each top-edge vector changes as required by a rigid rotation. Its length does not change. Require sx² + sy² &lt; 1 and positive rise at all four reference corners. The exact zero-lateral-slope case uses the existing parallel or longitudinal construction.</p>
+<h2>Fixed side-panel shapes</h2><p>Each bottom side line intersects the rotation axis at a stationary point P. Corresponding top vertices retain their distance from P. Let v be its bottom axis direction and w its full-open top direction. The reference middle axis bisects their angle; β = acos(v·w)/2. At intermediate progress, its direction m satisfies</p>
+<pre>m·v = cos β       m·w(p) = cos β       |m| = 1</pre>
+<p>These cone intersections preserve all pairwise distances in each side panel. The inward branch connects the collapsed and full-open states. When the side axis is parallel to u, use the planar equal-link limit: its midpoint lies at the chord midpoint plus inward depth sqrt(a² − chord²/4), where a is the fixed half-wall width. Stable half-angle differences avoid cancellation near equal left/right heights.</p>
+<h2>Scope of validation</h2><p>The automatic tests audit 18 compound designs through 101 actuation and 41 assembly samples each, with additional near-parallel-limit rigidity tests. Numerical collision checks and conservative width bounds reject problematic constructions. These are sampled geometric checks, not a continuous collision certificate or a prediction of pressure-driven motion. A directly connected side is handled by the separate direct-hinge construction; it cannot simultaneously satisfy a finite positive left/right rise ratio.</p><p><a href="block-editor.html">Editor architecture</a> · <a href="../index.html">Designer</a></p></html>
