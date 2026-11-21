@@ -1,0 +1,107 @@
+ORIGAMI BOX DESIGNER — NEXT SESSION HANDOFF
+Updated: 2026-11-21 (Asia/Seoul)
+
+1. AUTHORITATIVE CODE / GIT
+Repository folder:
+C:\Users\adban\Documents\Codex\2026-10-24\https-www-softrobotics-io-post-muscles\origami-box-actuator
+Application code: designer/ inside THAT repository.
+Branch: feat/box-designer-separated
+Remote: https://github.com/shtarbanov/origami-box-actuator.git
+Draft PR: https://github.com/shtarbanov/origami-box-actuator/pull/3
+Do not continue editing the sibling designer-lab directory. That is the older untracked prototype, not the committed application.
+Do not replace the original root index.html or CNAME without an explicit deployment decision.
+GitHub identity verified as JongHwan0604. Never use the Google admin/SNU Formula account. Credentials must not be printed or stored in source.
+
+Committed implementation before this handoff:
+d6022fb — KERNEL: pure geometry, panels, stencils.
+c21d7ab — API: transport, intent interpretation, constraints.
+058cbf0 — GUI: blocks, picking, display controls, gesture transactions.
+794bad0 — TEST: regression suites.
+8152d5d — CI/DOCS: GitHub Actions and editable-code/static-hosting instructions.
+50c35c3 — TEST FIX: include adapters/legacy-sheet.mjs required by legacy regressions.
+The handoff itself is a later docs-only commit; inspect git log rather than assuming HEAD equals 50c35c3.
+
+2. RUN / HOSTING
+Committed-code preview: http://127.0.0.1:4180/designer/
+It was served from the repository root with:
+  python -m http.server 4180 --bind 127.0.0.1
+The process may need restarting in a new session.
+Alternative from designer/: npm start (port 4173).
+WARNING: an older designer-lab server may still occupy port 4173. Do not confuse that prototype with committed code. Prefer the 4180 /designer/ route.
+No backend or npm dependencies are needed for the app. Use HTTP(S), not file://, because of ES modules/Worker.
+Actual GitHub Pages configuration was read: main branch, / root, https://origami.softrobotics.io/ .
+This development branch is NOT deployed. After review/merge into main, the isolated preview can be served at https://origami.softrobotics.io/designer/ . Do not describe that URL as live yet.
+
+3. IMPLEMENTED / VERIFIED
+- One parameterized box; no hinge/tilt/type selector. Semantic description blocks modify the same design.
+- Kernel, intent/constraints, versioned API, Worker and UI are separate modules.
+- Rectangular/trapezoid outlines, front/rear tilt, lateral tilt, direct side connections; dependencies and conflict sources.
+- Basic condition removal restores its neutral effect. Tilt removal restores zero longitudinal tilt; outline removal restores equal widths; lateral removal clears extra lateral bias. Other explicit constraints/locks remain; topology can impose dependent geometry and is reported.
+- Model/block bidirectional selection and a compact parameter editor below the model. Selecting an unconditioned feature creates a view-only descriptive card; only editing creates an actual constraint.
+- Four rise handles at the physical top-edge midpoints. Dimensions labelled Front max. rise / Rear max. rise remain maximum hinge-axis heights. Lateral ratio is defined at front hinge-axis corners. Keep these distinct; naming/API remains a review topic with Ali.
+- Left-drag pan, right-drag orbit, wheel zoom, touch gesture bindings, orthographic scale, underside views. No ground shadow.
+- Display menu at 3D upper-right: Directions, Dimension labels, Highlights, Height guides, Handles. Browser-local preferences, not design data.
+- Stable label offsets during orbit and requestAnimationFrame rendering. Reset label layout explicitly recomputes placement. Fixed offsets can overlap from some views; this tradeoff may be improved later without reintroducing label jumping.
+- IMPORTANT BUG FIX: rejected drag drafts used to contaminate the next drag while displaying an older valid mesh. Each drag now starts from the displayed resolved design and rejected samples do not replace it. Undo/Redo and subsequent widening were tested.
+- Paper fit is separate from geometric validity. An oversized stencil does not prohibit changing dimensions, but printing/export on the undersized sheet is blocked to avoid clipping.
+
+Validation in the transferred repository:
+  cd designer
+  npm test
+62 Node test cases AND all standalone legacy regression groups passed.
+GitHub Actions passed on implementation head 50c35c3 (push and PR workflows).
+Static /designer/ path was tested in a real browser: six panel faces, stencil, Worker, print enabled, no console errors.
+Physical touchscreen, airtight film, pressure/load behavior and continuous collision certification are NOT established.
+Regression log outside repo: ../outputs/Committed_Designer_Tests.log
+
+4. ISSUES / COMMENTS ALREADY POSTED
+Issue #1 (mouse zoom/pan/orbit):
+https://github.com/shtarbanov/origami-box-actuator/issues/1#issuecomment-7063480485
+Issue #2 (intuitive parameters):
+https://github.com/shtarbanov/origami-box-actuator/issues/2#issuecomment-7063480808
+Both reference PR #3, distinguish local implementation from deployment, and remain OPEN. Do not repost duplicates or auto-close before review.
+Issue #2 proposes basic length/width/deployed height + fabrication dimensions, with height-reference semantics to agree before freezing the API.
+
+5. NEW PRIORITY — STEP-BY-STEP FABRICATION GUIDE (USER REQUEST; NOT IMPLEMENTED)
+User recalls an old Run animation that folded the flat stencil into the assembled object. They now want a MANUFACTURING TUTORIAL, not just continuous actuation playback.
+UI: a compact Assembly/Fabrication guide button near the lower viewer/motion area, not more permanently exposed controls. Opening it shows <  step counter/title  > .
+> advances ONE folding or sealing operation; < returns to the previous operation. A short transition animation is fine, but no automatic play-through as the main interaction.
+Start from the flat panel layout. Sealing steps should emphasize matching/overlapped seal lines and show a brief or stage-visible "Seal here" cue.
+Preserve normal Play/Fold actuation preview as a separate mode. Leaving the guide must restore the user's design/view/edit state. Do not mutate parameters or save tutorial progress into the kernel spec.
+
+Known real fabrication workflow from the user:
+- Prepare/cut plastic panels using cutting template, chamfer corners about 1 mm, attach to film using folding template and mark fold/seal lines.
+- First fold in half along the SECOND solid marked line; trim excess film with sealing allowance; seal overlapped dashed lines (first longitudinal closure). Roll seal 10 times; trim remainder.
+- Tape the 3D printed inlet base, trim tape, attach at the marked circle, press inside film for adhesion, and puncture the air hole from inside.
+- Lift panels to form the box, then push/fold the marked side portions inward into the >< profile.
+- Seal overlapped end lines at BOTH ends; trim excess film.
+Old photos if needed: C:\Users\adban\OneDrive\문서\snu\soft act\new tuto
+Not every preparation action requires a 3D animation. Focus first on visible fold/seal operations and inlet marker/explanation.
+
+6. REUSE POINTS / CRITICAL GEOMETRY CAUTION
+The old assembly functionality STILL EXISTS in the kernel, but is not exposed in the main UI:
+- designer/kernel/validate.mjs: assembly(input, progress=1, opening=.75), assemblyAudit().
+- designer/kernel/index.mjs: evaluatePose(spec,{mode:'assembly',progress,targetOpening:.75}); API design.pose supports this state.
+- designer/ui/async-controller.mjs: pose(), frame(spec,'assembly').
+- designer/kernel/geometry.mjs: unfold(), model(), panelWorld(); net.hinges, net.seam, net.ends, folds and seals metadata.
+Main normal strip order: bottom, left-lower, left-upper, top, right-upper, right-lower.
+Hinge edges: A-D, K-L, E-J, F-G, M-N; closing seam B-C. Solid hinge indices [2,3,5] in the unfolding loop.
+For the ordinary strip, the second marked solid crease corresponds to the boundary before the top panel (E-J). Verify coordinates/orientation instead of relying only on this note.
+
+CRITICAL: current assembly() interpolates ALL hinge angles synchronously from the open net to a .75-open target. It is NOT a validated first-fold/seal/side-fold/end-seal manufacturing sequence. Do NOT simply divide progress into arbitrary equal segments and label them as fabrication steps.
+The first half-fold plus sealed pouch can be a different planar configuration from the collapsed pose of the existing actuation path. Establish a continuous rigid-panel, seam-preserving path between stages; do not jump between them, stretch panels, or change their areas.
+End film is not modeled as a complete 3D membrane. Current seal guides are experimental. Do not claim paired end-film lines truly coincide unless modeled/verified; clearly separate instructional markers from a manufacturing certificate.
+First deliver a validated sequence for the ordinary rectangular box. Do not invent a plausible animation for every generalized geometry; return a supported/unsupported diagnostic from the kernel when necessary.
+
+Suggested architecture for the next feature:
+- Kernel/neutral assembly module returns stage IDs, operation type (fold/seal/inlet), rigid placements, geometric cue anchors/line pairs and support diagnostics.
+- API exposes assembly stages and a pose/transition for stage + local progress. Keep existing design.pose assembly compatibility where possible.
+- UI owns labels, < > buttons, transition timing and "Seal here" rendering. No folding equations in DOM handlers.
+- Use ONE camera frame covering the flat net and all stages; avoid automatic zoom changes or perspective tricks that make rigid plate areas appear to change.
+- Test panel distances/areas, continuous transitions, closure after sealing, and agreement of seal cue coordinates; verify controls forward/back and clean exit in the browser.
+
+7. NEXT SESSION START
+Read this file and designer/README.md, inspect git status/log and PR #3, then start the staged fabrication guide above. Avoid adding unrelated shape types or doing a large GUI rewrite in the same change.
+Current editor entry: designer/ui/block-app.mjs (still large; reduce state coupling carefully).
+Supporting view modules: ui/render.mjs, ui/selection.mjs, ui/label-layout.mjs, ui/drag-session.mjs, view-controls.mjs.
+Keep the compact English UI. User dislikes clutter, unnecessary confirmations, hidden account changes, and unsupported geometric claims.
