@@ -1,0 +1,24 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Browser API transport checks</title><style>body{font:16px system-ui;max-width:850px;margin:40px auto}pre{white-space:pre-wrap}</style><h1>Browser API transport checks</h1><pre id="result">Running…</pre><script type="module">
+import {handleRequest,API_VERSION} from '../api/dispatch.mjs';
+import {renderTemplate} from '../adapters/svg.mjs';
+const result=document.querySelector('#result'),worker=new Worker('../adapters/worker.mjs',{type:'module'}),pending=new Map();
+worker.onmessage=event=>{const task=pending.get(event.data.id);if(task){pending.delete(event.data.id);clearTimeout(task.timer);task.resolve(event.data);}};
+worker.onerror=event=>{for(const task of pending.values()){clearTimeout(task.timer);task.reject(Error(event.message));}pending.clear();};
+const send=request=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(request.id);reject(Error('Worker timeout'));},15000);pending.set(request.id,{resolve,reject,timer});worker.postMessage(request);});
+try{
+ const spec=handleRequest({apiVersion:API_VERSION,method:'describe',payload:{}}).value.defaultSpec;
+ const requests=[['describe',{}],['design.build',{spec}],['design.pose',{spec,state:{mode:'actuation',progress:.5}}],['design.pose',{spec,state:{mode:'assembly',progress:.5}}],['design.templates',{spec}],['design.validate',{spec,options:{samples:21,assemblySamples:21}}],['design.edit',{spec,changes:[{path:'/footprint/length',value:90}]}],['design.edit',{spec,changes:[{path:'/footprint/length',value:90}],fixedPaths:['/footprint/length']}]];
+ const lines=[];
+ for(const [i,[method,payload]] of requests.entries()){
+  const request={apiVersion:API_VERSION,id:i,method,payload},expected=handleRequest(request),actual=await send(request);
+  if(JSON.stringify(expected)!==JSON.stringify(actual))throw Error('Worker/in-process mismatch: '+method);
+  lines.push('PASS '+method+(actual.ok?'':' (structured rejection)'));
+ }
+ const templates=handleRequest({apiVersion:API_VERSION,method:'design.templates',payload:{spec}}).value;
+ const svg=renderTemplate(templates.cutting,{type:'cutting'}).svg,dom=new DOMParser().parseFromString(svg,'image/svg+xml');
+ if(dom.querySelector('parsererror')||dom.documentElement.getAttribute('width')!=='297mm'||dom.querySelectorAll('[data-cut]').length!==9)throw Error('Invalid cutting SVG');
+ lines.push('PASS SVG parsing, 100% dimensions, 9 unique rectangular-strip cuts');
+ result.textContent='ALL CHECKS PASSED\n'+lines.join('\n');document.title='PASS — Browser API transport checks';
+}catch(error){result.textContent='FAILED\n'+error.stack;document.title='FAIL — Browser API transport checks';}
+finally{worker.terminate();}
+</script></html>
