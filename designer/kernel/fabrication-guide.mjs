@@ -4,6 +4,7 @@ import {resolveSpec,DesignError} from './spec.mjs';
 import {parameters,unfold,pose,panelWorld,distance} from './geometry.mjs';
 import {panelFrame} from './panel-frame.mjs';
 import {contacts} from './validate.mjs';
+import {fabricationVisuals} from './fabrication-visuals.mjs';
 
 const stages=[
  {id:'layout',operation:'prepare',title:'Start with the flat layout',instruction:'Attach the panels to the film using the folding template. Trace the solid fold lines, dashed sealing lines and inlet circle.'},
@@ -14,7 +15,7 @@ const stages=[
  {id:'inward-fold',operation:'fold',title:'Fold the side walls inward',instruction:'Push both marked side creases inward into a >< profile, then flatten the box so the top and bottom end-sealing lines overlap.'},
  {id:'front-seal',operation:'seal',title:'Seal the front end',instruction:'Seal the overlapping front dashed lines. Keep the inlet and its air passage clear of the heated area; trim the excess film.'},
  {id:'rear-seal',operation:'seal',title:'Seal the rear end',instruction:'Seal the overlapping rear dashed lines, keeping the inlet and its air passage clear. Trim the excess film. The actuator is ready for an inflation test.'}
-];
+].map(stage=>({...stage,transition:{durationMs:stage.operation==='seal'?1700:stage.operation==='fold'||stage.operation==='inlet'?1100:240}}));
 const sub=(a,b)=>a.map((x,i)=>x-b[i]);
 function context(spec){
  const r=resolveSpec(spec),supported=r.parameters.kind==='rectangle'&&r.spec.walls.left&&r.spec.walls.right;
@@ -71,18 +72,19 @@ function poseValue(c,state){
  const {index,progress:t}=state,g=geometry(c,index,t),active=index===2?'long':index===6?'front':index===7?'rear':null;
  const completed=index-(t<1?1:0),sealedIds=[...(completed>=2?['long']:[]),...(completed>=6?['front']:[]),...(completed>=7?['rear']:[])];
  const cues=[...g.folds.map(s=>({...s,active:index===1&&s.id==='half-fold'||index===5&&s.id!=='half-fold'})),...g.seals.map(s=>({...s,role:'seal',active:s.id===active,sealed:sealedIds.includes(s.id)}))];
- return {schema:'origami-box/fabrication-pose/1',state:{stageId:stages[index].id,progress:t},stage:{...stages[index]},panels:g.panels,
+ return {schema:'origami-box/fabrication-pose/1',state:{stageId:stages[index].id,progress:t},stage:{...stages[index],transition:{...stages[index].transition}},panels:g.panels,
   placements:g.panels.map(p=>({id:p.id,...panelFrame(p.pointsMm)})),contacts:[],cues,
-  film:g.film,inlet:{pointMm:g.inlet,active:index===3,installed:completed>=3},sealedIds,
+  film:g.film,inlet:{pointMm:g.inlet,active:index===3,installed:completed>=3,markerVisible:index<3},sealedIds,
+  ...fabricationVisuals({p:c.p,g,index,progress:t,activeSeal:active}),
   activeSeal:active?{id:active,pairedLinesMm:g.seals.filter(s=>s.id===active).map(s=>s.pointsMm),status:'coincident-ideal-guides'}:null,
   evidence:{panelModel:'rigid zero-thickness mid-surfaces',filmModel:'illustrative top/bottom allowance strips; flexible side gussets not solved',finiteThickness:'not certified; flat stack requires real hinge and film compliance'}};
 }
 export function fabricationGuide(spec){
  const c=context(spec);
  if(!c.supported)return {schema:'origami-box/fabrication-guide/1',supported:false,stages:[],diagnostics:[{code:'FABRICATION_GUIDE_UNSUPPORTED',severity:'info',message:'The fabrication guide currently supports rectangular boxes with two folding side walls and equal rises.'}]};
- const {p}=c,lo=[-1.5*p.width0-4*p.l0,-p.l0-p.clearance,0],hi=[p.width0/2,p.length+p.l0+p.clearance,p.width0+2*p.l0];
+ const {p}=c,w=Math.min(p.gap*.8,3),margin=w*.7,lo=[-1.5*p.width0-4*p.l0-margin,-p.l0-p.clearance-margin,-w*.8-.25],hi=[p.width0/2+margin,p.length+p.l0+p.clearance+margin,p.width0+2*p.l0];
  const framePointsMm=[0,1].flatMap(x=>[0,1].flatMap(y=>[0,1].map(z=>[x?hi[0]:lo[0],y?hi[1]:lo[1],z?hi[2]:lo[2]])));
- return {schema:'origami-box/fabrication-guide/1',supported:true,stages:stages.map(s=>({...s})),framePointsMm,
+ return {schema:'origami-box/fabrication-guide/1',supported:true,stages:stages.map(s=>({...s,transition:{...s.transition}})),framePointsMm,
   diagnostics:[{code:'IDEAL_FABRICATION_PATH',severity:'info',message:'Rigid-panel sequence; flat stacking uses ideal mid-surfaces. Film pleats and finite-thickness clearance require physical validation.'}]};
 }
 export function fabricationPose(spec,state){const c=context(spec);requireSupport(c);return poseValue(c,stateValues(state));}
