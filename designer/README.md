@@ -60,16 +60,16 @@ hollow inlet meshes and their movements. The renderer projects those meshes;
 it does not construct their shapes or decide their trajectories. Detail views
 make the pressing action and the inlet's flange, neck and bore easier to see.
 
-Guides support boxes with both side walls: rectangular or trapezoidal outlines,
-front/rear pitch, lateral tilt and their valid combinations, including the
-zero-rear-rise longitudinal limit. Direct-side hinges retain a separate unsupported
-diagnostic. The generalized route adds one side-pair prefold step and is generated
-entirely in the kernel; the GUI is unchanged. Zero-thickness panel distances,
-areas, rigid-map embedding, hinge continuity, seam closure and sealing-guide
-coincidence are tested.
-Coplanar stacking is intentional; finite-thickness stacking and complete flexible
-end-film/gusset behavior are not certified. See
-[the geometric construction](docs/fabrication-guide.md).
+The public fabrication guide currently supports rectangular, equal-rise boxes
+with both side walls. The generalized prefold guide was withdrawn: coincident
+seam guides and rigid panels did not establish correct film-layer order or sealer
+access. Direct-side hinges also retain a separate unsupported diagnostic.
+`fabrication.validate` explicitly reports a rigid-geometry scope and
+`manufacturingReady: false`; its numerical pass is not a sealing certificate.
+An isolated kernel research module now models a rectangular film blank, directed
+folds, pre-folded free margins and a finite heated footprint. It tests a local
+external-fin seal, not a complete manufacturing route. No candidate result
+unlocks the public guide. See [construction and limits](docs/fabrication-guide.md).
 
 ## Static hosting
 

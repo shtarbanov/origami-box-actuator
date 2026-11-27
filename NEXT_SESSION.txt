@@ -152,8 +152,8 @@ Verification:
 - Screenshots outside repo: ../outputs/GUI_Sealing_Press.jpg and ../outputs/GUI_Inlet_Attachment.jpg.
 Keep kernel/API/GUI/test/docs changes distinguishable in commits on the existing branch and PR. Production root site is unchanged.
 
-9. LATEST — GENERALIZED SIDE-PAIR PREFOLD GUIDES / INLET REFINEMENT
-User asked whether prefolding the small-panel pairs makes the nonrectangular designs close. YES for the current valid two-wall families.
+9. SUPERSEDED MANUFACTURING CLAIM — READ SECTION 10 FIRST
+The following work proved rigid endpoint closure, NOT a valid generalized manufacturing route. The route has been withdrawn; see section 10. Inlet refinements remain valid.
 A literal E-J-only half fold of the old taper net misaligns the first seam; finished 3D feasibility does not imply this particular net-fold choice works.
 Example Wfront/rear=80/64, L=75, max rises30/30: endpoint shift6.3639 mm, normal separation0.675 mm. These are different quantities; do not describe 6.36 as the gap between parallel lines.
 
@@ -186,3 +186,20 @@ Artifacts outside repo:
 ../outputs/General_Guide_Prefold.jpg: 3D guide at aligned-seam stage.
 ../outputs/GUI_Inlet_Smaller_Bevel.jpg: reduced/chamfered inlet.
 Physical panel thickness, compliant film/gussets and actual sealing performance are still unverified; zero-thickness stacking is intentional.
+
+10. CURRENT — WITHDRAWN ROUTE / FILM-LAYER AND SEAL-ACCESS STUDY
+User correctly rejected the generalized route: small panels must close downward, and a sealer cannot weld an internal line through other film layers. They allow margin and heater width to be variables; seal before trimming excess film.
+Public fabricationGuide now returns unsupported / SEAL_LAYER_ACCESS_UNVERIFIED for nonrectangular designs, and fabricationPose rejects them. Original rectangular 8-stage route remains unchanged. A cached open tab needs reloading to receive this correction.
+fabrication.validate explicitly labels its numerical results as sampled-rigid-panel-geometry, manufacturingReady=false, sealLayerAccess=unverified, and guideAvailable=false for withdrawn routes. A numerical pass is not manufacturing evidence.
+New pure research module: designer/kernel/film-seal-study.mjs. Not exposed by public API or GUI.
+Candidate: first side pair up; first free film margin down; far margin pre-folded up; second small-panel pair down; the two margins meet as an external fin below the body. Seal the fin, THEN trim. Margin timing matters; do not extract buried layers after closure.
+The full source blank is rectangular; all material is retained and tracked in UV coordinates, split only at film creases. Independent rigid panels stay attached to UV coordinates. Reject creases crossing panels, film crossings, stack-order violations, extra heated layers, incomplete heated-band coverage, wrong material normals, or margins straddling the second fold. Coplanar overlaps count in thermal-layer audits, even though kinematic stacking is allowed.
+Explicit research variables: marginMm, heatWidthMm, setbackMm; samples optional. Example values 8/1/2 mm are NOT physical hardware defaults.
+Reproduce: node designer/tools/study-external-fin.mjs
+Outputs ignored by git: designer/verification/external-fin/report.json and external-fin.svg. Tracked illustration: designer/docs/figures/external-fin.svg.
+Example taper W80/64,L75,rise30: local checks pass at201 samples/fold. A27-case width/pitch/lateral grid passes at101 samples/fold. Upward second fold produces film intersections. Delaying margin preparation until after closure produces stack-order violations. Zero-rear-rise example is rejected because extra blank film straddles a fold.
+ALL local study results are manufacturingReady=false. End-seal junctions, full jaw housing/finite thickness, post-seal film unfolding, airtightness and pneumatic actuation are not validated. Do not enable the generalized public guide on the strength of this local result alone.
+Important mechanical consequence: setback s leaves two unbonded root-to-weld paths of length s, allowing corresponding seam roots to separate by up to 2s (triangle inequality, not a motion prediction). The fin weld does NOT enforce the ideal B-C root coincidence. Account for this extra freedom before claiming the old actuation path applies.
+Verification for this correction: 90 Node tests plus all standalone legacy regression groups passed. Six new film-seal tests include opposing normals, rigid-panel attachment, wrong direction, late extraction, thermal extra layers, variable margins and withdrawn public API behavior. No GUI feature was changed; existing cached tabs require reload.
+Prior Side_Prefold_Closure illustration and General_Fabrication reports certify rigid geometry only and are superseded as manufacturing evidence. Do not use them to instruct sealing.
+See designer/docs/fabrication-guide.md and tests/film-seal-study.test.mjs. All changes remain kernel/API/tests/docs; the GUI contains no shape-specific workaround.

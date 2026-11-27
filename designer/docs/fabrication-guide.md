@@ -1,4 +1,10 @@
-# Rigid-panel manufacturing paths
+# Fabrication guide and geometric research
+
+The public guide is limited to the original rectangular, equal-rise box with
+both folding walls. The previously added generalized prefold guide has been
+withdrawn. Its panels were rigid and seam endpoints matched, but film-layer
+order and exterior sealer access had not been verified. Those geometric results
+do not validate the former sealing instructions or their illustrations.
 
 This is a new path, not a subdivision of synchronous hinge interpolation in the
 legacy `assembly()` function. The latter remains available for compatibility.
@@ -65,7 +71,7 @@ The last two stages stay flattened; leaving the guide returns to the separate
 actuation preview rather than falsely transporting sealed film as rigid plates.
 
 
-## Generalized two-wall boxes: prefold the small-panel pairs
+## Withdrawn generalized route: geometry is not a fabrication proof
 
 The finished 3D closed linkage and a particular single-hinge fold of the open net
 are different geometric questions. For example, with front/rear widths 80/64 mm,
@@ -74,50 +80,74 @@ E-J leaves the closing-seam endpoints displaced by 6.3639 mm. The parallel lines
 are only 0.675 mm apart normally; endpoint displacement is not the normal gap.
 This is a limitation of that fold choice, not an impossibility of the actuator.
 
-For the nonrectangular two-wall families the kernel instead generates nine stages:
-layout; first side-pair prefold; opposite side-pair prefold; long seal; inlet;
-open pouch on the outward branch; fold inward and flatten; front seal; rear seal.
-The existing rectangular eight-stage route is retained.
+Two side-pair prefolds can align the seam endpoints and stack the large panels.
+Changing a 180-degree fold from upward to downward gives the same rigid endpoint
+but a different path and material-layer order. Sealing through a stack cannot be
+justified by excluding coplanar contacts from a motion collision audit.
 
-1. Rotate faces 2 through 5 as one rigid tail by pi about K-L, the middle crease
-   of the first small-panel pair. The top comes over the bottom.
-2. Rotate face 5 by pi about the now-transformed M-N, the middle crease of the
-   other small-panel pair. The two small-panel pairs are stacked outboard, the
-   congruent top and bottom coincide, and both endpoints of B-C close.
-3. Seal that matching long edge and attach the inlet. An additional E-J half
-   fold is neither needed nor part of this route.
-4. Open the closed pouch along the outward side-wall branch. For every opening,
-   take the existing closed pose and reflect each middle side hinge across the
-   plane containing its bottom and top outer hinge lines. The outer hinge lines
-   lie in the reflection plane, so they stay fixed. Both adjacent facets undergo
-   the same isometry, preserving their shapes and shared middle hinge.
-5. At zero opening the limiting reflection plane is the vertical plane through
-   the bottom side edge. The outward midhinges equal the two-prefold endpoint.
-   At the designed fully raised pose both facets of each side are coplanar, so
-   outward and inward branches meet. That exact endpoint map is reused to avoid
-   reflecting tiny floating-point square-root residuals at tangency.
-6. Continue along the existing inward branch to the flat stack, then perform
-   both end seals with the paired end guides coincident.
+`fabrication-motion.mjs` and the private generalized program remain available to
+geometry regression checks. `fabrication.describe` returns unsupported with
+`SEAL_LAYER_ACCESS_UNVERIFIED`; `fabrication.pose` rejects the withdrawn route.
+`fabrication.validate` may still return `numericalPass: true` for the rigid
+geometry, but also returns `validationScope: 'sampled-rigid-panel-geometry'`,
+`manufacturingReady: false`, `sealLayerAccess: 'unverified'` and
+`guideAvailable: false`. These are deliberately separate claims.
 
-`kernel/fabrication-motion.mjs` implements the tail rotations and reflected branch.
-`fabrication-guide.mjs` owns the shape-dependent stage program, all pose/cue
-coordinates and the viewing envelope. There are no new stage or family switches
-in the GUI. The two-fold endpoint and branch joins are tested on taper, pitch,
-zero-height apex, lateral tilt, mixed tilt/taper and reversed parameter cases.
+## Local external-fin candidate
 
-### Stronger audit and scope
+![Kernel-generated film-fold study](figures/external-fin.svg)
 
-The audit now checks the virtual panel vertices as well as the inset physical
-outlines. Every vertex-pair distance must be constant, and embedding the virtual
-vertices through each panel's rigid map must reconstruct all hinge anchors. This
-prevents an orthonormal panel renderer from hiding an inconsistent fourth corner.
+`kernel/film-seal-study.mjs` is pure, headless research code, separate from the
+public fabrication API and GUI. It keeps a full rectangular material-coordinate
+film blank; no narrow tabs are secretly pre-cut. Each clipped film patch has an
+isometric placement, and rigid panels remain attached to their original material
+coordinates. The candidate sequence is:
 
-Coplanar overlaps occur intentionally when panels have been stacked, including
-throughout the second prefold. They are counted separately from noncoplanar
-surface crossings. The audit samples all stages and checks closure after sealing,
-branch continuity, seal-guide alignment and rigid-map consistency. A 50-case valid
-parameter grid sampled at 101 poses per stage had no noncoplanar crossings; 10
-additional zero-rise/lateral-tilt inputs were rejected by the existing design
-constraints. This is sampled collision evidence, not a continuous or finite-
-thickness collision certificate. Film pleats, material compliance and airtight
-manufacturing remain outside this ideal-panel model.
+1. Fold the first side-pair middle crease upward, carrying the tail.
+2. Fold the first free film margin downward while it is accessible.
+3. Pre-fold the far free margin upward while it is still accessible.
+4. Close the second small-panel pair downward, carrying its pre-folded margin.
+5. Heat the two resulting external margins below the body, then trim beyond the
+   weld. Do not try to pull buried margins out after the body closes.
+
+The blank expansion `m`, heated-band width `b`, and setback `s` are explicit
+positive study inputs, never hardware defaults. Both margins must cover the
+whole band, with free depth at least `s + b`. All other film must stay outside
+the local band and simplified horizontal approach corridor. The full sealer
+housing is not represented. The rectangular blank's actual material coverage
+is checked, not inferred from the nominal margin alone.
+
+The setback also changes the mechanical constraint: each root-to-weld material
+path has length `s`, so the triangle inequality allows the two corresponding
+seam roots to separate by up to `2s`. This is an upper allowance, not a prediction
+that the roots will separate by that amount. The welded fin therefore does not
+enforce the coincident B-C roots assumed in the ideal closed linkage. A narrower
+heated band alone does not remove this freedom. The eventual physical design
+must reconcile tool clearance with acceptable seam-root freedom before the
+existing actuation path can be claimed for this sealing arrangement.
+
+The study samples film crossings and material isometry, checks panel attachment,
+rejects folds through rigid panels, and checks departure order from a coplanar
+stack. The heater audit counts every overlapping material patch, including
+coplanar and partially overlapping extra layers. The two target material normals
+must oppose. Extra film is retained throughout this study, including sealing.
+
+Reproduce the report and SVG with:
+
+```sh
+node designer/tools/study-external-fin.mjs
+```
+
+The illustrated 80/64 mm taper example, with 75 mm length, 30 mm rise,
+`m=8`, `s=2`, `b=1` mm, passes these local checks at 201 samples per fold.
+A 27-case width/pitch/lateral-ratio grid passes at 101 samples per fold. These
+are explicit examples, not a general domain proof. Negative controls matter:
+closing the second pair upward causes film crossings; extracting margins after
+closure violates stack order even when a noncoplanar crossing test passes.
+Insufficient margins fail, and a zero-rear-rise example is rejected because its
+rectangular-blank margin straddles the next fold.
+
+Every result still returns `manufacturingReady: false`. The complete end-film
+folds, junctions between longitudinal and end seals, real jaw clearance, positive
+thickness, airtightness and inflation after sealing remain unverified. Passing
+the local candidate does not enable a public generalized fabrication guide.
