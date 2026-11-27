@@ -28,9 +28,5 @@ export function outwardMaps(p,net,progress){
  }
  return net.faces.map(f=>Object.fromEntries(f.ids.map(id=>[id,v[id]])));
 }
-export function panelsCoplanar(a,b,tolerance=1e-6){
- const first=a[0];let normal;
- for(let i=1;i<a.length-1;i++){const n=cross(sub(a[i],first),sub(a[i+1],first));if(norm(n)>1e-10){normal=unit(n);break;}}
- return !!normal&&b.every(v=>Math.abs(dot(sub(v,first),normal))<=tolerance);
-}
+export {panelsCoplanar} from './surface-contacts.mjs';
 export function pairError(a,b){return Math.min(Math.max(distance(a[0],b[0]),distance(a[1],b[1])),Math.max(distance(a[0],b[1]),distance(a[1],b[0])));}
