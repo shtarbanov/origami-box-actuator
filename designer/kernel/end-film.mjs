@@ -23,7 +23,7 @@ function seamFrame(c,state,faceIndex,fin){
  const g=c.context.net.p.gap,item=wallTuckGapAudit(c,state).items.at(-1),out=[...c.context.normal0,0],q=elbow(item,add(item.first[0],mul(out,g)),g),root=faceIndex===0?item.first[0]:item.second[0],shift=sub(item.first[1],item.first[0]);
  return {normal:n,uv,transform:fin?frame([uv[0],add(uv[0],n),uv[1]],[q,add(q,out),add(q,shift)]):frame([sub(uv[0],mul(n,g/2)),uv[0],sub(uv[1],mul(n,g/2))],[root,q,add(root,shift)])};
 }
-export function endFilmAtlas(c,{opening=0,retainedLongFinMm=2}={}){
+export function endFilmAtlas(c,{opening=0,retainedLongFinMm=2,referenceYRange=c.context.retainedReferenceYRange??null}={}){
  const state=wallTuckClosedState(c,opening,true),zero={...c,inwardOffsets:c.inwardOffsets.map(()=>[0,0,0])},flat=wallTuckClosedState(zero,0,true),bounds=c.context.bounds,g=c.context.net.p.gap;
  let remaining={id:'blank',uvMm:[[bounds.minX,bounds.minY],[bounds.maxX,bounds.minY],[bounds.maxX,bounds.maxY],[bounds.minX,bounds.maxY]]};const patches=[];
  const interval=(patch,a,n,lo,hi)=>{let p=patch;if(Number.isFinite(lo))p=clipUV(p,add(a,mul(n,lo)),n,1);if(p&&Number.isFinite(hi))p=clipUV(p,add(a,mul(n,hi)),n,-1);return p;};
@@ -45,10 +45,11 @@ export function endFilmAtlas(c,{opening=0,retainedLongFinMm=2}={}){
   push(interval(p,a,n,offset,Math.min(retainedLongFinMm,offset+b)),'long-fin-'+i+'-weld','fin-weld',sf.transform,zf.transform);
   if(retainedLongFinMm>offset+b)push(interval(p,a,n,offset+b,retainedLongFinMm),'long-fin-'+i+'-tip','fin',sf.transform,zf.transform);
  }
- let maxIsometryError=0,maxContinuityError=0;
+ if(referenceYRange){if(referenceYRange.length!==2||!referenceYRange.every(Number.isFinite)||referenceYRange[0]>=referenceYRange[1])throw Error('Invalid retained film range.');for(let i=patches.length-1;i>=0;i--){const a=clipWorldY(patches[i],referenceYRange[0],1),b=a?clipWorldY(a,referenceYRange[1],-1):null;if(b)patches[i]=b;else patches.splice(i,1);}}
+ let maxIsometryError=0,maxContinuityError=0;const continuityConflicts=[],conflictKeys=new Set();
  for(const p of patches)for(const t of [p.transform,p.flatTransform])maxIsometryError=Math.max(maxIsometryError,Math.abs(dot(t.x,t.x)-1),Math.abs(dot(t.y,t.y)-1),Math.abs(dot(t.x,t.y)));
- for(let i=0;i<patches.length;i++)for(let j=i+1;j<patches.length;j++)for(const v of [...patches[i].uvMm,...patches[j].uvMm])if(inPolygon(v,patches[i].uvMm)&&inPolygon(v,patches[j].uvMm))maxContinuityError=Math.max(maxContinuityError,distance(point(patches[i],v),point(patches[j],v)));
- return {schema:'origami-box/end-film-atlas/1',patches,state,opening,retainedLongFinMm,maxIsometryError,maxContinuityError};
+ for(let i=0;i<patches.length;i++)for(let j=i+1;j<patches.length;j++)for(const v of [...patches[i].uvMm,...patches[j].uvMm])if(inPolygon(v,patches[i].uvMm)&&inPolygon(v,patches[j].uvMm)){const world=[point(patches[i],v),point(patches[j],v)],errorMm=distance(...world),key=[i,j,...v.map(x=>Math.round(x*1e7))].join(',');maxContinuityError=Math.max(maxContinuityError,errorMm);if(errorMm>1e-8&&!conflictKeys.has(key)){conflictKeys.add(key);continuityConflicts.push({patchIds:[patches[i].id,patches[j].id],uvMm:[...v],pointsMm:world,errorMm});}}
+ return {schema:'origami-box/end-film-atlas/1',patches,state,opening,retainedLongFinMm,maxIsometryError,maxContinuityError,continuityConflicts};
 }
 function clipWorldY(patch,value,side){const t=patch.flatTransform,n=[t.x[1],t.y[1]],origin=mul(n,(value-t.origin[1])/dot(n,n));return clipUV(patch,origin,n,side);}
 export function endFilmProblem(c,{end='front',opening=0,retainedLongFinMm=2,endTrimAllowanceMm=2,rootClearanceMm=c.thicknessMm*2,subdivisions=2}={}){

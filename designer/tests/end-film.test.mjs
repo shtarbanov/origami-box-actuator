@@ -7,6 +7,7 @@ import {endFilmAtlas,endFilmOverlayProblem,endLongSeamCoverage,minimumEndBlankMa
 import {endFilmPressFrame} from '../kernel/end-film-closure.mjs';
 import {validateEndFilm,endFilmLayerAudit,endFilmInletPath,endFilmPlasticPath} from '../kernel/end-film-validation.mjs';
 import {compileEndFilmStudy} from '../kernel/end-film-study.mjs';
+import {planEndFilmBlank,withEndBlankMargin,withEndBlankPlan} from '../kernel/end-film-blank.mjs';
 function context({widthRatio=.8,heightRatio=1,marginMm=25}={}){const s=defaultSpec();s.footprint.frontWidth=80;s.footprint.rearWidthRatio=widthRatio;s.rise.front=30;s.rise.rearRatio=heightRatio;return wallTuckThickContext(wallTuckProgram(s,{marginMm,heatWidthMm:1,samples:51}),{samples:51});}
 const c=context();
 test('the film atlas preserves material coordinates and cannot hide a disconnected mixed profile',()=>{
@@ -47,4 +48,18 @@ test('the kernel supplies reversible end operations and retains first end closur
  const front=p=>p.meshes.filter(m=>m.id.startsWith('front-')),plastic=p=>p.meshes.filter(m=>m.role==='panel');
  assert.deepEqual(front(s.stages[2].frames.at(-1)),front(s.stages[3].frames.at(-1)));
  assert.deepEqual(plastic(s.stages[0].frames[0]),plastic(s.stages[4].frames.at(-1)));
+});
+test('combined taper and pitch require an explicit blank operation, not a tolerance increase or vertex merging',()=>{
+ const original=context({heightRatio:.6}),before=structuredClone(original.program.initial.panels),plan=planEndFilmBlank(original);assert.equal(plan.operation,'trim-distant-waste-before-folding');assert.ok(plan.originalContinuityErrorMm>.0005);assert.ok(plan.plannedContinuityErrorMm<1e-10);assert.equal(plan.selectedMarginMm,19);assert.ok(plan.minimumWeldCoverageMarginMm<19&&plan.upperCompatibleMarginMm>24);
+ const planned=withEndBlankMargin(original,plan.selectedMarginMm);assert.deepEqual(planned.program.initial.panels,before);assert.equal(endLongSeamCoverage(planned).covered,true);
+ assert.throws(()=>endFilmPressFrame(endFilmOverlayProblem(original,{end:'rear'}),1),/discontinuous/);
+ const study=compileEndFilmStudy(original,{framesPerPress:31});assert.equal(study.stages[1].id,'trim-blank');assert.equal(study.report.geometryPass,true);assert.equal(study.report.plasticAirway.clearOfPlastic,true);assert.equal(study.report.airway.connected,true);assert.equal(study.report.inletPath.positiveGap,true);assert.equal(study.report.finitePanelAudit.finitePanelPathPass,true);assert.ok(study.report.maxPrincipalStrain<.007);assert.equal(study.report.manufacturingReady,false);
+ assert.deepEqual(original.program.initial.panels,before);assert.equal(original.context.options.marginMm,25);
+});
+test('steep combined profiles use one continuous profiled blank without cutting required weld margins',()=>{
+ const original=context({heightRatio:.4}),before=structuredClone(original.program.initial.panels),plan=planEndFilmBlank(original);assert.equal(plan.operation,'trim-profiled-end-waste-before-folding');assert.ok(plan.cutOutlineUvMm.length>4);assert.equal(plan.oneConnectedBlank,true);assert.ok(plan.conflicts.every(p=>p.outsideRetainedBlank));assert.ok(plan.plannedContinuityErrorMm<1e-10);
+ const planned=withEndBlankPlan(original,plan),a=endFilmAtlas(planned);assert.deepEqual(planned.program.initial.panels,before);assert.ok(a.maxContinuityError<1e-10);assert.equal(endLongSeamCoverage(planned).covered,true);
+ const study=compileEndFilmStudy(original,{framesPerPress:21});assert.equal(study.report.geometryPass,true);assert.equal(study.report.inletPath.positiveGap,true);assert.equal(study.report.plasticAirway.clearOfPlastic,true);
+ const step=study.stages.find(s=>s.id==='trim-blank'),film=step.frames[0].meshes.find(m=>m.id==='retained-blank');assert.equal(film.faces[0].length,plan.cutOutlineUvMm.length);assert.equal(step.frames[0].cues.length,plan.cutOutlineUvMm.length);for(const cue of step.frames[0].cues)assert.ok(cue.pointsMm.every(p=>p.length===3));
+ assert.deepEqual(original.program.initial.panels,before);
 });
