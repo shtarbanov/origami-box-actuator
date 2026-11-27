@@ -21,7 +21,7 @@ export function createFabricationPlayer(call,onChange,{nextFrame=()=>new Promise
    const ticket=generation,previous={index:state.index,pose:state.pose},transition=state.guide.stages[direction>0?target:state.index];
    emit({busy:true,index:target,error:null});
    try{
-    const duration=reducedMotion?0:transition.operation==='fold'?1000:240;
+    const duration=reducedMotion?0:Math.min(10000,Math.max(0,transition.transition?.durationMs??1000));
     let start=null;
     do{
      const time=await nextFrame();if(ticket!==generation)return false;if(start===null)start=time;
