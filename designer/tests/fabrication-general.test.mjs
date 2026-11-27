@@ -19,26 +19,21 @@ test('two side-pair prefolds align both closing seam endpoints and stack congrue
   for(let f=0;f<6;f++)for(const id of net.faces[f].ids)assert.ok(distance(end[f][id],target[id])<1e-8,item[0]);
  }
 });
-test('nonrectangular guide stages preserve rigid maps, closure and seals throughout the manufacturing path',()=>{
+test('nonrectangular rigid geometry remains consistent but is not an approved sealing route',()=>{
  for(const item of cases){
   const s=specFor(item),g=fabricationGuide(s),audit=validateFabrication(s,{samples:151});
-  assert.equal(g.supported,true);assert.equal(g.stages.length,9);assert.equal(g.stages[2].id,'align-seam');
+  assert.equal(g.supported,false);assert.deepEqual(g.stages,[]);assert.equal(g.diagnostics[0].code,'SEAL_LAYER_ACCESS_UNVERIFIED');
+  assert.throws(()=>fabricationPose(s,{stageId:'long-seal'}),e=>e.code==='SEAL_LAYER_ACCESS_UNVERIFIED');
+  assert.equal(audit.manufacturingReady,false);assert.equal(audit.guideAvailable,false);assert.equal(audit.validationScope,'sampled-rigid-panel-geometry');assert.equal(audit.sealLayerAccess,'unverified');
   assert.equal(audit.numericalPass,true,item[0]+': '+JSON.stringify(audit));assert.ok(audit.flatStackContactSamples>0);
   assert.ok(audit.maxPanelMapErrorMm<1e-8);assert.equal(audit.unexpectedSurfaceCrossings.length,0);
-  const closure=fabricationPose(s,{stageId:'long-seal'}),inlet=fabricationPose(s,{stageId:'inlet'}),rear=fabricationPose(s,{stageId:'rear-seal'});
-  assert.deepEqual(closure.sealedIds,['long']);assert.equal(inlet.inlet.active,true);assert.ok(inlet.meshes.some(m=>m.id==='inlet'));
-  assert.deepEqual(rear.sealedIds,['long','front','rear']);
-  for(const stage of g.stages)for(const progress of [0,.1,.37,.5,.83,1]){
-   const pose=fabricationPose(s,{stageId:stage.id,progress}),points=[...pose.panels,...pose.film].flatMap(p=>p.pointsMm);
-   for(const p of points)for(let i=0;i<3;i++)assert.ok(p[i]>=Math.min(...g.framePointsMm.map(v=>v[i]))-1e-6&&p[i]<=Math.max(...g.framePointsMm.map(v=>v[i]))+1e-6,item[0]);
-  }
  }
 });
 test('coplanar stacking is distinguished from panels crossing at an angle',()=>{
  const a=[[0,0,0],[2,0,0],[2,2,0],[0,2,0]],same=[[.5,.5,0],[1.5,.5,0],[1.5,1.5,0],[.5,1.5,0]],through=[[1,0,-1],[1,2,-1],[1,2,1],[1,0,1]];
  assert.equal(panelsCoplanar(a,same),true);assert.equal(panelsCoplanar(a,through),false);
 });
-test('the generic GUI is unchanged by the new nine-stage kernel programs',async()=>{
+test('the generic GUI contains no shape-specific manufacturing routing',async()=>{
  const entry=await fs.readFile(new URL('../ui/block-app.mjs',import.meta.url),'utf8'),guide=await fs.readFile(new URL('../ui/fabrication-feature.mjs',import.meta.url),'utf8');
  assert.ok(!/align-seam|taper|wedge|oblique|compound/.test(entry+guide));
 });

@@ -19,6 +19,8 @@ const stages=[
 ].map(stage=>({...stage,transition:{durationMs:stage.operation==='seal'?1700:stage.operation==='fold'||stage.operation==='inlet'?1100:240}}));
 const sub=(a,b)=>a.map((x,i)=>x-b[i]);
 function programFor(p){
+ // The generalized program is retained only for geometry-only regression audits.
+ // Public guide/pose requests reject it until a complete film sealing route exists.
  const result=stages.map(s=>({...s,transition:{...s.transition}}));
  if(p.kind!=='rectangle'){
   Object.assign(result[1],{title:'Fold the first side pair',instruction:'Fold the two left side panels onto each other along their middle solid crease. Carry the rest of the strip with this fold; the top panel comes over the bottom.'});
@@ -113,12 +115,13 @@ function generalEnvelope(c){
 export function fabricationGuide(spec){
  const c=context(spec);
  if(!c.supported)return {schema:'origami-box/fabrication-guide/1',supported:false,stages:[],diagnostics:[{code:'FABRICATION_GUIDE_UNSUPPORTED',severity:'info',message:'The fabrication guide requires both folding side walls. The direct-hinge design needs a separate sequence.'}]};
+ if(c.prefold)return {schema:'origami-box/fabrication-guide/1',supported:false,stages:[],diagnostics:[{code:'SEAL_LAYER_ACCESS_UNVERIFIED',severity:'warning',message:'The previous prefold route has been withdrawn: coincident seam guides did not establish that only the intended film layers reach the sealer.'}]};
  const {p}=c,w=Math.min(p.gap*.8,3),margin=w*.7,lo=[-1.5*p.width0-4*p.l0-margin,-p.l0-p.clearance-margin,-w*.8-.25],hi=[p.width0/2+margin,p.length+p.l0+p.clearance+margin,p.width0+2*p.l0];
  const framePointsMm=c.prefold?generalEnvelope(c):[0,1].flatMap(x=>[0,1].flatMap(y=>[0,1].map(z=>[x?hi[0]:lo[0],y?hi[1]:lo[1],z?hi[2]:lo[2]])));
  return {schema:'origami-box/fabrication-guide/1',supported:true,stages:c.stages.map(s=>({...s,transition:{...s.transition}})),framePointsMm,
   diagnostics:[{code:'IDEAL_FABRICATION_PATH',severity:'info',message:'Rigid-panel sequence; flat stacking uses ideal mid-surfaces. Film pleats and finite-thickness clearance require physical validation.'}]};
 }
-export function fabricationPose(spec,state){const c=context(spec);requireSupport(c);return poseValue(c,stateValues(state,c.stages));}
+export function fabricationPose(spec,state){const c=context(spec);requireSupport(c);if(c.prefold)throw new DesignError('SEAL_LAYER_ACCESS_UNVERIFIED','/spec','The generalized route is withdrawn pending film-layer and sealer-access verification.');return poseValue(c,stateValues(state,c.stages));}
 
 export function validateFabrication(spec,options={}){
  if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(k=>k!=='samples'))throw new DesignError('INVALID_OPTIONS','/options','Supply only an optional samples count.');
@@ -147,7 +150,7 @@ export function validateFabrication(spec,options={}){
   if(crossings.length)unexpectedSurfaceCrossings.push({stageId:id,progress:t,pairs:crossings});
   if(i>0&&k===0){const prev=geometry(c,i-1,1);g.panels.forEach((p,f)=>p.pointsMm.forEach((v,j)=>{maxTransitionErrorMm=Math.max(maxTransitionErrorMm,distance(v,prev.panels[f].pointsMm[j]));}));}
  }
- return {schema:'origami-box/fabrication-validation/1',samplesPerStage:samples,maxDistanceErrorMm,maxAreaErrorMm2,maxHingeErrorMm,maxClosureErrorMm,maxSealMismatchMm,maxTransitionErrorMm,maxPanelMapErrorMm,flatStackContactSamples,unexpectedSurfaceCrossings,
+ return {schema:'origami-box/fabrication-validation/1',validationScope:'sampled-rigid-panel-geometry',manufacturingReady:false,guideAvailable:!c.prefold,sealLayerAccess:'unverified',samplesPerStage:samples,maxDistanceErrorMm,maxAreaErrorMm2,maxHingeErrorMm,maxClosureErrorMm,maxSealMismatchMm,maxTransitionErrorMm,maxPanelMapErrorMm,flatStackContactSamples,unexpectedSurfaceCrossings,
   numericalPass:Math.max(maxDistanceErrorMm,maxAreaErrorMm2,maxHingeErrorMm,maxClosureErrorMm,maxSealMismatchMm,maxTransitionErrorMm,maxPanelMapErrorMm)<1e-6&&unexpectedSurfaceCrossings.length===0,
   evidence:{rigidity:'physical and virtual panel vertex-pair distances, areas and rigid-map embedding, sampled',hinges:'both endpoints, sampled',longitudinalClosure:'both endpoints after first sealing, sampled',seals:'paired ideal guide endpoints at sealing poses',collision:'noncoplanar zero-thickness surface crossings, sampled; coplanar stacking counted separately',finiteThickness:'unverified',film:'full membrane and gusset folding unverified'}};
 }
