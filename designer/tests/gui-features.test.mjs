@@ -70,7 +70,14 @@ test('kernel animates the sealer press and bond, and attaches a rigid hollow ste
  assert.ok(mesh(a).verticesMm[0][2]>mesh(b).verticesMm[0][2]);
  const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
  for(let i=0;i<mesh(a).verticesMm.length;i+=5)for(let j=i+1;j<mesh(a).verticesMm.length;j+=11)assert.ok(Math.abs(distance(mesh(a).verticesMm[i],mesh(a).verticesMm[j])-distance(mesh(b).verticesMm[i],mesh(b).verticesMm[j]))<1e-7);
- assert.ok(mesh(b).bore.radiusMm>0);assert.equal(mesh(b).faces.length,192);
+ assert.ok(mesh(b).bore.radiusMm>0);assert.equal(mesh(b).faces.length,224);
+ const edges=new Map();for(const face of mesh(b).faces)for(let i=0;i<face.length;i++){const edge=[face[i],face[(i+1)%face.length]].sort((a,b)=>a-b).join(':');edges.set(edge,(edges.get(edge)??0)+1);}
+ assert.ok([...edges.values()].every(n=>n===2));assert.equal(mesh(b).verticesMm.length-edges.size+mesh(b).faces.length,0); // Closed through-bore surface.
+ const origin=b.inlet.pointMm,radiusAt=v=>Math.hypot(v[0]-origin[0],v[1]-origin[1]),maxZ=Math.max(...mesh(b).verticesMm.map(v=>v[2]));
+ const top=mesh(b).verticesMm.filter(v=>Math.abs(v[2]-maxZ)<1e-8),below=mesh(b).verticesMm.filter(v=>v[2]<maxZ-1e-8);
+ const neckBelow=below.filter(v=>Math.abs(v[2]-Math.max(...below.map(v=>v[2])))<1e-8);
+ assert.ok(Math.max(...top.map(radiusAt))<Math.max(...neckBelow.map(radiusAt))); // Beveled outer rim.
+ assert.ok(Math.max(...mesh(b).verticesMm.map(radiusAt))<.6*Math.min(spec.footprint.frontWidth*.12,(spec.rise.front/2+spec.fabrication.endAllowance)*.38));
  assert.ok(sample('rear-seal',1).meshes.some(m=>m.id==='inlet'));
 });
 test('feature implementations have no imports of one another; the entry only wires ports',async()=>{

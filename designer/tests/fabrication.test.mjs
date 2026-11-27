@@ -57,9 +57,9 @@ test('all neighboring stages share the exact same rigid-panel endpoints',()=>{
   a.panels.forEach((p,f)=>p.pointsMm.forEach((v,j)=>assert.ok(distance(v,b.panels[f].pointsMm[j])<1e-7)));
  }
 });
-test('unsupported shapes get a kernel diagnostic rather than a fabricated animation',()=>{
- for(const change of [s=>s.footprint.rearWidthRatio=.8,s=>s.rise.rearRatio=.6,s=>s.walls.left=false,s=>s.rise.rightToLeftRatio=.8]){
-  const s=defaultSpec();s.rise.front=30;change(s);assert.equal(fabricationGuide(s).supported,false);
+test('direct-side hinges keep a separate unsupported manufacturing diagnostic',()=>{
+ for(const side of ['left','right']){
+  const s=defaultSpec();s.rise.front=30;s.walls[side]=false;assert.equal(fabricationGuide(s).supported,false);
   assert.throws(()=>fabricationPose(s,{stageId:'layout'}),{code:'FABRICATION_GUIDE_UNSUPPORTED'});
  }
 });
@@ -89,7 +89,7 @@ test('UI player consumes API ordering, reaches every step, reverses exactly and 
 test('exiting cancels in-flight samples, including unsupported/loading paths',async()=>{
  let resume;const player=createFabricationPlayer(call,()=>{},{nextFrame:()=>new Promise(r=>resume=r)});
  await player.open(defaultSpec());const step=player.step(1);player.close();resume(0);assert.equal(await step,false);assert.equal(player.state.active,false);
- const s=defaultSpec();s.rise.rearRatio=.5;assert.equal(await player.open(s),false);assert.match(player.state.error,/rectangular/);
+ const s=defaultSpec();s.rise.front=30;s.walls.left=false;assert.equal(await player.open(s),false);assert.match(player.state.error,/both folding side walls/);
 });
 test('seal rendering uses kernel cue coordinates and a stable camera without solver imports',()=>{
  const s=defaultSpec(),camera=cameraForFrame(frameFromPoints(fabricationGuide(s).framePointsMm));
