@@ -4,11 +4,13 @@ export function sheetStudySVG(pose,view,frame,width=1000,height=560){
  const esc=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
  const az=view.az*Math.PI/180,el=view.el*Math.PI/180,scale=frame.scale*view.zoom;
  const project=v=>{const q=v.map((x,i)=>x-frame.center[i]),xx=q[0]*Math.cos(az)-q[1]*Math.sin(az),yy=q[0]*Math.sin(az)+q[1]*Math.cos(az);return [width/2+view.x+xx*scale,height/2+view.y+(yy*Math.sin(el)-q[2]*Math.cos(el))*scale,yy*Math.cos(el)+q[2]*Math.sin(el)];};
- const faces=[...(view.film===false?[]:pose.film.map(p=>({...p,kind:'film'}))),...pose.panels.map(p=>({...p,kind:'panel'}))].map(p=>({...p,screen:p.pointsMm.map(project)}));
+ const solids=(pose.meshes??[]).filter(m=>m.role==='panel'),meshFaces=(pose.meshes??[]).flatMap(m=>view.film===false&&m.role!=='panel'?[]:m.faces.map(face=>({id:m.panelId??m.id,color:m.color,kind:m.role==='panel'?'panel':'film',solid:m.role==='panel',pointsMm:face.map(i=>m.verticesMm[i])})));
+ const faces=[...(view.film===false?[]:pose.film.map(p=>({...p,kind:'film'}))),...(solids.length?[]:pose.panels.map(p=>({...p,kind:'panel'}))),...meshFaces].map(p=>({...p,screen:p.pointsMm.map(project)}));
  faces.sort((a,b)=>a.screen.reduce((s,p)=>s+p[2],0)/a.screen.length-b.screen.reduce((s,p)=>s+p[2],0)/b.screen.length);
  let out=`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="white"/>`;
- for(const p of faces){const film=p.kind==='film',moving=pose.operation?.movingPanelIds.includes(p.id),color=p.color??(film?'#a2bdc9':moving?'#f1c37a':'#d4e4ed');
-  out+=`<polygon points="${p.screen.map(q=>q.slice(0,2).join(',')).join(' ')}" fill="${color}" fill-opacity="${film?.24:.93}" stroke="${film?(p.color??'#92a8b5'):'#456377'}" stroke-width="${film?.8:1.3}" stroke-linejoin="round"/>`;
+ for(const p of faces){const film=p.kind==='film',moving=(pose.emphasizedPanelIds??pose.operation?.movingPanelIds??[]).includes(p.id);let color=p.color??(film?'#a2bdc9':moving?'#f1c37a':'#d4e4ed');
+  if(p.solid){const [a,b,c]=p.pointsMm,u=b.map((x,i)=>x-a[i]),v=c.map((x,i)=>x-a[i]),n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],norm=Math.hypot(...n),factor=.65+.35*Math.abs((n[0]*.3-n[1]*.4+n[2]*.85)/(norm||1))/Math.hypot(.3,.4,.85);color='#'+color.slice(1).match(/../g).map(x=>Math.round(parseInt(x,16)*factor).toString(16).padStart(2,'0')).join('');}
+  out+=`<polygon points="${p.screen.map(q=>q.slice(0,2).join(',')).join(' ')}" fill="${color}" fill-opacity="${film?.3:p.solid?1:.93}" stroke="${film?(p.color??'#92a8b5'):'#456377'}" stroke-width="${film?.7:p.solid?.5:1.3}" stroke-linejoin="round"/>`;
  }
  if(pose.bandMm)out+=`<polygon points="${pose.bandMm.map(project).map(q=>q.slice(0,2).join(',')).join(' ')}" fill="#20a87a" fill-opacity=".7" stroke="#07825b" stroke-width="2"/>`;
  for(const cue of pose.cues??[]){if(view.creases===false&&cue.role==='fold')continue;const [a,b]=cue.pointsMm.map(project),active=cue.active,color=cue.role==='seal'?'#15966b':active?'#125be0':'#8a9ead';
