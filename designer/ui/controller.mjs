@@ -24,6 +24,6 @@ export function createController(invoke=call){
    return {design,validation,templates,sheets,exportable};
   },
   pose(spec,state){const key=JSON.stringify({spec,state});if(key!==poseKey){lastPose=invoke('design.pose',{spec,state});poseKey=key;}return lastPose;},
-  frame(spec,mode){const key=JSON.stringify(spec)+mode;if(!frames.has(key)){const poses=invoke('design.referencePoses',{spec,options:{mode}});frames.set(key,frameFromPoints(poses.flatMap(p=>p.panels.flatMap(f=>f.pointsMm))));}return frames.get(key);}
+  frame(spec,mode){const key=JSON.stringify(spec)+mode;if(!frames.has(key)){const poses=invoke('design.referencePoses',{spec,options:{mode}});frames.set(key,frameFromPoints(poses.flatMap(p=>p.meshes?.flatMap(m=>m.verticesMm)??p.panels.flatMap(f=>f.pointsMm))));}return frames.get(key);}
  };
 }

@@ -13,7 +13,7 @@ export function sheetStudySVG(pose,view,frame,width=1000,height=560){
   out+=`<polygon points="${p.screen.map(q=>q.slice(0,2).join(',')).join(' ')}" fill="${color}" fill-opacity="${film?.3:p.solid?1:.93}" stroke="${p.meshRole==='end-film'?'none':film?(p.color??'#92a8b5'):'#456377'}" stroke-width="${film?.7:p.solid?.5:1.3}" stroke-linejoin="round"/>`;
  }
  if(pose.bandMm)out+=`<polygon points="${pose.bandMm.map(project).map(q=>q.slice(0,2).join(',')).join(' ')}" fill="#20a87a" fill-opacity=".7" stroke="#07825b" stroke-width="2"/>`;
- for(const cue of pose.cues??[]){if(view.creases===false&&cue.role==='fold')continue;const [a,b]=cue.pointsMm.map(project),active=cue.active,color=cue.role==='seal'?'#15966b':active?'#125be0':'#8a9ead';
+ for(const cue of pose.cues??[]){if(view.creases===false&&cue.role==='fold')continue;const [a,b]=cue.pointsMm.map(project),active=cue.active,color=cue.role==='seal'?'#15966b':cue.role==='cut'?'#d6852c':active?'#125be0':'#8a9ead';
   out+=`<path d="M${a[0]} ${a[1]}L${b[0]} ${b[1]}" fill="none" stroke="${color}" stroke-width="${active?3:1.2}" ${cue.role==='seal'?'stroke-dasharray="6 4"':''}/>`;
   if(cue.label){const offset=cue.labelOffsetPx??[8,-8];out+=`<text x="${(a[0]+b[0])/2+offset[0]}" y="${(a[1]+b[1])/2+offset[1]}" font-family="Arial,sans-serif" font-size="17" font-weight="700" fill="${color}" stroke="white" stroke-width="4" paint-order="stroke">${esc(cue.label)}</text>`;}
  }

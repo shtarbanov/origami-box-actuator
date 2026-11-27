@@ -98,7 +98,7 @@ test('UI consumes only API data; camera redraw and paper changes do not revalida
  calls.length=0;controller.pose(spec,state);controller.frame(spec,'actuation');assert.equal(calls.length,0);
  for(const elevation of [-180,-90,-30,0,30,90,180]){
   const camera=cameraForFrame(frame,42,elevation);const svg=sceneSVG(p,camera,{zoom:1,panX:0,panY:0});
-  assert.ok(!svg.includes('<ellipse'));assert.ok(!svg.includes('NaN'));assert.equal((svg.match(/data-face=/g)||[]).length,6);near(camera.scale,frame.scale);
+  assert.ok(!svg.includes('<ellipse'));assert.ok(!svg.includes('NaN'));assert.equal(new Set([...svg.matchAll(/data-face="([^"]+)"/g)].map(m=>m[1])).size,6);assert.equal((svg.match(/data-facet=/g)||[]).length,36);near(camera.scale,frame.scale);
  }
  const bad=structuredClone(spec);bad.rise.front=200;assert.throws(()=>controller.build(bad,'A4'));
  assert.ok(controller.build(spec,'A4').exportable);
