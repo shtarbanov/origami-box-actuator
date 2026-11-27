@@ -28,7 +28,8 @@ export interface Design {
  parameterRelations:{code:string;paths:string[];relation:string;reason:string}[];
  capabilities:Capabilities;diagnostics:Diagnostic[];
 }
-export interface Pose {schema:'origami-box/pose/1';state:PoseState;panels:Panel3D[];placements:{id:string;originMm:Vec3;rotationRowMajor:[Vec3,Vec3,Vec3]}[];contacts:[string,string][];interpretation:string}
+export interface PanelSolidMesh extends SceneMesh {role:'panel';panelId:string;thicknessMm:number;referenceSurface:'midplane'}
+export interface Pose {schema:'origami-box/pose/1';state:PoseState;panels:Panel3D[];meshes:PanelSolidMesh[];placements:{id:string;originMm:Vec3;rotationRowMajor:[Vec3,Vec3,Vec3]}[];contacts:[string,string][];interpretation:string}
 export interface Segment {from:Vec2;to:Vec2}
 /** Progress is local to the transition INTO this stage, not actuation/pressure. */
 export interface FabricationState {stageId:string;progress?:number}
