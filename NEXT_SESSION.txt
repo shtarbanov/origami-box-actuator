@@ -118,3 +118,36 @@ This environment currently has node but not npm in PATH; node tests/run.mjs from
 - Physical touch screen and actual manufacturing still need physical validation.
 - Production Pages/root index/CNAME were not changed. Keep this work on feat/box-designer-separated / PR #3 until review/merge.
 - Keep kernel/API/UI commits separate. Do not work in designer-lab.
+
+8. LATEST CONTINUATION — GUI FEATURE BOUNDARIES / SCHEMATIC HARDWARE
+The large UI entry has been replaced by a small composition root (ui/block-app.mjs).
+Feature implementations do not import one another; they receive explicit ports/callbacks.
+- ui/design-session.mjs: DOM-free API transactions, revision gates, history, storage and edit leases.
+- ui/parameter-feature.mjs: forms/blocks, selection, input debounce/focus. Pending input can flush before mode changes.
+- ui/viewport-feature.mjs: camera, display preferences, stable labels, picking/dragging and generic renderer-mode leases.
+- ui/actuation-feature.mjs: normal Play/Fold, API sampling, suspension and settling in-flight renders.
+- ui/fabrication-feature.mjs: guide DOM/player lifecycle; acquires/releases edit and viewport leases.
+- ui/project-feature.mjs: file open/save, history buttons, paper/templates, export/print and feedback.
+- ui/fabrication-feature.css: styles owned by the guide, separate from general editor styling.
+See designer/docs/gui-features.md for responsibilities and extension contracts.
+
+Kernel changes:
+- kernel/fabrication-visuals.mjs returns neutral vertex/face meshes for a two-jaw sealer, growing bond and hollow stepped inlet.
+- The inlet has a wide low cylindrical flange, narrower cylindrical neck and through-bore; it descends onto the marked film location and stays attached afterward.
+- Sealing stages approach, press and release jaws, growing a bond strip during the press. No Seal here caption remains.
+- Stage transition durations, tool trajectories, accessory shapes and detail-view envelopes come from the kernel.
+- UI mesh-scene.mjs only projects/depth-sorts/shades arbitrary meshes. fabrication-render.mjs draws cues and generic detail cards. Player contains no stage-name or operation-name cases.
+- Returned stage transition metadata is copied to avoid mutating kernel constants through API results.
+- Hardware proportions and animation times are SCHEMATIC, not actual hardware dimensions or sealer settings.
+
+Support remains rectangular, equal-rise boxes with both folding walls. No generalized fabrication paths were added in this refactor.
+A new path within the current scene contract should only require kernel/API result changes, not unrelated GUI feature edits. A completely new interaction/primitive would extend its own corresponding port/renderer.
+
+Verification:
+- 80 Node test cases and all standalone legacy groups passed; log ../outputs/GUI_Features_Tests.log.
+- Tests cover headless session history/save/load/queued edits/locks/rejections/failed imports, debounced input flush, no cross-feature imports, an unfamiliar kernel guide stage/operation, sealer press/release/bond and rigid hollow inlet attachment.
+- Real browser: number width edit and Undo, Front width 3D drag from 60 to 83, model-edge selection, Play/Pause and normal Fold, all 8 guide steps and all 7 reversals.
+- At 99% opening, opening/reversing/exiting the guide returns a byte-identical normal SVG, including label offsets. A resize-triggered label reset was removed; explicit Display/Fit re-layout remains.
+- No browser console errors in the tested flow.
+- Screenshots outside repo: ../outputs/GUI_Sealing_Press.jpg and ../outputs/GUI_Inlet_Attachment.jpg.
+Keep kernel/API/GUI/test/docs changes distinguishable in commits on the existing branch and PR. Production root site is unchanged.

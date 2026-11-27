@@ -14,6 +14,11 @@ It is a research prototype, not a validated pressure or material simulation.
 
 The GUI calls the API; it does not import the geometry solver. The kernel has no DOM or browser dependency.
 
+The GUI is also split into independent parameter, viewport, actuation,
+fabrication and project features. The entry point only wires their ports.
+See [GUI feature boundaries](docs/gui-features.md) for ownership, state leases
+and how another kernel-generated manufacturing path reaches the existing GUI.
+
 ## Run locally
 
 On Windows, double-click **Open Designer.cmd** in the repository root. It starts a
@@ -48,6 +53,10 @@ fold axes, seal pairs, inlet and a fixed viewing envelope. The versioned
 `fabrication.describe`, `fabrication.pose` and `fabrication.validate` API calls
 expose these data through the Worker. `ui/fabrication-player.mjs` only navigates
 and times API samples; `ui/fabrication-render.mjs` draws the returned cues.
+`kernel/fabrication-visuals.mjs` additionally supplies schematic sealing-jaw and
+hollow inlet meshes and their movements. The renderer projects those meshes;
+it does not construct their shapes or decide their trajectories. Detail views
+make the pressing action and the inlet's flange, neck and bore easier to see.
 
 This first path supports rectangular boxes with equal rises and both side walls.
 Other shapes get an explicit kernel diagnostic. Zero-thickness panel distances,
