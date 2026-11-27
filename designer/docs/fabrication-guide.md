@@ -95,6 +95,9 @@ geometry, but also returns `validationScope: 'sampled-rigid-panel-geometry'`,
 
 ## Local external-fin candidate
 
+Current work: [corrected down/up/up folds with finite panels and the opposite
+wall tucked inward before end sealing](finite-panel-folding.md).
+
 The newer [wall-tuck study](wall-tuck-study.md) implements the user's proposed
 double-and-swing order and finds an exposed two-layer first-seal footprint on
 the existing net in the checked nonzero-rise cases. The external-fin study below

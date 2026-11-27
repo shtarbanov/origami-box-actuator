@@ -1,5 +1,11 @@
 # Double a wall, swing it inward, then overlap the large panels
 
+**Historical zero-thickness baseline.** The current corrected directions are
+A down, B up, C unchanged/up. The finite-plastic continuation, opposite-wall
+inward step and current viewer are documented in
+[finite-panel-folding.md](finite-panel-folding.md). The earlier direction prose
+below describes the superseded baseline and must not be used as current instructions.
+
 This implements the user's proposed order as a first-long-seal research study.
 It retains a full rectangular film blank and uses three existing panel joints.
 It does not fold free margins into a new external fin.

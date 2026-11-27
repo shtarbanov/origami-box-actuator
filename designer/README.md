@@ -71,11 +71,12 @@ folds, pre-folded free margins and a finite heated footprint. It tests a local
 external-fin seal, not a complete manufacturing route. No candidate result
 unlocks the public guide. See [construction and limits](docs/fabrication-guide.md).
 
-A separate [wall-tuck study and offline step viewer](docs/wall-tuck-study.md)
+A separate [finite-panel wall-tuck study and offline step viewer](docs/finite-panel-folding.md)
 tests doubling one wall, swinging it inward and folding the remaining strip.
-It checks the retained rectangular film blank and exposed two-layer footprint,
-including failed fold directions and the wrong final hinge. Generate it with
-`node designer/tools/study-wall-tuck.mjs`. It remains first-seal research.
+Its corrected direction is down/up/up. Positive-thickness plastic, local flexible
+gaps and the opposite-wall inward step are checked separately from the earlier
+zero-thickness full-blank audit. Generate it with
+`node designer/tools/study-wall-tuck.mjs`. End-film sealing remains unverified.
 
 ## Static hosting
 
