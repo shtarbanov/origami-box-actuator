@@ -151,3 +151,38 @@ Verification:
 - No browser console errors in the tested flow.
 - Screenshots outside repo: ../outputs/GUI_Sealing_Press.jpg and ../outputs/GUI_Inlet_Attachment.jpg.
 Keep kernel/API/GUI/test/docs changes distinguishable in commits on the existing branch and PR. Production root site is unchanged.
+
+9. LATEST — GENERALIZED SIDE-PAIR PREFOLD GUIDES / INLET REFINEMENT
+User asked whether prefolding the small-panel pairs makes the nonrectangular designs close. YES for the current valid two-wall families.
+A literal E-J-only half fold of the old taper net misaligns the first seam; finished 3D feasibility does not imply this particular net-fold choice works.
+Example Wfront/rear=80/64, L=75, max rises30/30: endpoint shift6.3639 mm, normal separation0.675 mm. These are different quantities; do not describe 6.36 as the gap between parallel lines.
+
+New kernel path (9 stages, existing GUI unmodified):
+layout -> rotate faces2..5 by pi about K-L (first side-pair middle crease) -> rotate face5 by pi about transformed M-N (second pair middle crease) -> long seal -> inlet -> outward-branch opening -> inward branch and flatten -> front seal -> rear seal.
+The two prefolds alone align both seam endpoints and stack congruent top/bottom. Do NOT add the original E-J half fold afterward.
+The outward branch reflects each middle hinge across the plane containing that side's two outer hinge lines. Both facets stay rigid; outer axes stay fixed. At opening1 it meets the inward branch at straight-wall tangency. Reuse the same map at the endpoint to avoid square-root roundoff.
+Existing rectangular 8-stage route is preserved. Direct-side hinge variants remain unsupported, as requested.
+New pure module: designer/kernel/fabrication-motion.mjs. All stage order, poses and cues remain in the kernel. No GUI feature was modified for the extra stage or shape support.
+
+Validation improvements:
+- Check ALL virtual panel vertex-pair distances too, plus rigid-map reconstruction of every hinge vertex. Physical outline rigidity alone cannot catch a solver supplying a distorted fourth corner.
+- Coplanar panel stacking is counted separately; it is expected during the second prefold. Noncoplanar crossings are still failures.
+- Public validation adds maxPanelMapErrorMm and flatStackContactSamples.
+- 84 Node cases + all legacy regression groups passed: ../outputs/General_Fabrication_Tests.log.
+- 50 valid parameter-grid cases, 101 samples/stage: max distance7.11e-13 mm, closure2.35e-12 mm, transition2.59e-12 mm, rigid-map error8.97e-13 mm; zero noncoplanar crossings. 10 incompatible zero-rise/lateral-tilt inputs were rejected by existing constraints.
+- Representative taper example also checked at401 samples/stage.
+- Real browser taper W80/64,L75,h30: all9 stages forward and8 reversals; returned byte-identical starting SVG. No console errors.
+
+Inlet / labels requested in the same work:
+- Removed 'schematic' from visible Heat sealing and Inlet detail titles; retained internal model limitations/data metadata.
+- Inlet overall scale70% of previous, flange radius additionally82%; narrower flange/neck ratio.
+- Outer neck opening rim has an explicit chamfer ring; through-bore retained. Mesh is a closed genus-one surface, tested by edge incidence / Euler characteristic.
+- Bore axis follows the moving inlet during attachment.
+
+Artifacts outside repo:
+../outputs/Side_Prefold_Closure.png and .svg: three-view diagram from actual kernel poses.
+../outputs/Side_Prefold_Verification.json: example spec, poses and401-sample audit.
+../outputs/General_Fabrication_Verification.json: 50-case report with rejected-domain inputs.
+../outputs/General_Guide_Prefold.jpg: 3D guide at aligned-seam stage.
+../outputs/GUI_Inlet_Smaller_Bevel.jpg: reduced/chamfered inlet.
+Physical panel thickness, compliant film/gussets and actual sealing performance are still unverified; zero-thickness stacking is intentional.

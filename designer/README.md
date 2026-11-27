@@ -43,8 +43,10 @@ Use HTTP(S), rather than opening index.html with file://, because the app loads 
 
 Choose **Fabrication guide** below the 3D viewer, then use **< / >** (or left/right
 arrow keys when the step controls have focus). It starts from the flat stencil:
-half fold, longitudinal seal, inlet, open into a box, fold both walls inward and
-flatten, front seal, rear seal. Back rewinds the explanation; it does not imply a
+the rectangular box uses its original half fold. Other two-wall boxes first
+fold each small-panel pair at its middle crease to align the seam. Both routes
+then seal the long edge, attach the inlet, open into a box, fold the walls inward
+and flatten, and seal the two ends. Back rewinds the explanation; it does not imply a
 physical heat seal can be undone. Exit restores the previous design, actuation
 position and camera. Normal Play remains an independent actuation preview.
 
@@ -58,9 +60,13 @@ hollow inlet meshes and their movements. The renderer projects those meshes;
 it does not construct their shapes or decide their trajectories. Detail views
 make the pressing action and the inlet's flange, neck and bore easier to see.
 
-This first path supports rectangular boxes with equal rises and both side walls.
-Other shapes get an explicit kernel diagnostic. Zero-thickness panel distances,
-areas, hinge continuity, seam closure and sealing-guide coincidence are tested.
+Guides support boxes with both side walls: rectangular or trapezoidal outlines,
+front/rear pitch, lateral tilt and their valid combinations, including the
+zero-rear-rise longitudinal limit. Direct-side hinges retain a separate unsupported
+diagnostic. The generalized route adds one side-pair prefold step and is generated
+entirely in the kernel; the GUI is unchanged. Zero-thickness panel distances,
+areas, rigid-map embedding, hinge continuity, seam closure and sealing-guide
+coincidence are tested.
 Coplanar stacking is intentional; finite-thickness stacking and complete flexible
 end-film/gusset behavior are not certified. See
 [the geometric construction](docs/fabrication-guide.md).
