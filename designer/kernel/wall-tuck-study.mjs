@@ -7,7 +7,7 @@ import {heatedFilmLayers} from './film-seal-study.mjs';
 import {add,sub,mul,dot,cross,unit,identity,point,area,clipUV,compileSheetFolds,sampleSheetFolds,auditSheetFolds} from './sheet-folds.mjs';
 export function wallTuckProgram(spec,options){
  if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(k=>!['marginMm','heatWidthMm','sealOffsetMm','foldSigns','wholeFoldHinge','samples'].includes(k)))throw new DesignError('INVALID_OPTIONS','/options','Unknown or missing wall-tuck study options.');
- const {marginMm,heatWidthMm,sealOffsetMm=0,foldSigns=[1,-1,1],wholeFoldHinge=1,samples=101}=options??{};
+ const {marginMm,heatWidthMm,sealOffsetMm=0,foldSigns=[-1,1,1],wholeFoldHinge=1,samples=101}=options??{};
  if(!Number.isFinite(marginMm)||marginMm<=0||!Number.isFinite(heatWidthMm)||heatWidthMm<=0||!Number.isFinite(sealOffsetMm)||sealOffsetMm<0||!Array.isArray(foldSigns)||foldSigns.length!==3||foldSigns.some(n=>![-1,1].includes(n))||![1,2].includes(wholeFoldHinge))throw new DesignError('INVALID_OPTIONS','/options','Provide explicit positive marginMm and heatWidthMm, optional nonnegative sealOffsetMm, three +/-1 foldSigns and wholeFoldHinge 1 or 2.');
  if(!Number.isInteger(samples)||samples<3||samples>501)throw new DesignError('INVALID_OPTIONS','/options/samples','Use 3..501 samples.');
  const resolved=resolveSpec(spec);if(!resolved.spec.walls.left||!resolved.spec.walls.right)throw new DesignError('UNSUPPORTED_STUDY','/spec','This study requires both folding walls.');
