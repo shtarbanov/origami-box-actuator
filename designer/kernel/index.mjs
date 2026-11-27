@@ -4,6 +4,7 @@ import {audit,assemblyAudit,assembly,contacts} from './validate.mjs';
 import {resolveSpec,DesignError} from './spec.mjs';
 import {designRules,futureExtensions} from './design-rules.mjs';
 import {panelFrame} from './panel-frame.mjs';
+import {panelPrismMesh} from './panel-solid.mjs';
 import {mobilityProfile} from './mobility.mjs';
 import {postureAt,solvePosture,synthesizeLongitudinalGoal} from './posture.mjs';
 import {rearApexRelief,ASSEMBLY_TARGET} from './fabrication.mjs';
@@ -50,7 +51,7 @@ export function evaluatePose(spec,state){return geometryError(()=>{
  const points=s.mode==='assembly'?assembly(p,s.progress,s.targetOpening).panels:net.faces.map(f=>panelWorld(net,f,m.v));
  const pairs=s.mode==='actuation'&&s.progress===0&&p.thickness===0?[]:contacts(points,p.thickness);
  const panels=panelsData(net.faces,points,r.mirror);
- return {schema:'origami-box/pose/1',state:s,panels,
+ return {schema:'origami-box/pose/1',state:s,panels,meshes:panels.map(panel=>panelPrismMesh(panel,p.thickness)),
   placements:panels.map(p=>{const {originMm,rotationRowMajor}=panelFrame(p.pointsMm);return {id:p.id,originMm,rotationRowMajor};}),
   contacts:pairs.map(pair=>pair.map(i=>idFor(net.faces[i].id,r.mirror))),
   interpretation:'Constructed rigid geometry; progress is not pressure, time or predicted physical posture.'};
