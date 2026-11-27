@@ -1,5 +1,5 @@
 // Versioned transport-independent application API. Both browser and CLI call this.
-import {buildDesign,evaluatePose,validateDesign,templateGeometry,referencePoses,defaultSpec,legacyToSpec,analyzeDesign,inversePosture,synthesizeGoal,exploreOrientation} from '../kernel/index.mjs';
+import {buildDesign,evaluatePose,validateDesign,templateGeometry,referencePoses,defaultSpec,legacyToSpec,analyzeDesign,inversePosture,synthesizeGoal,exploreOrientation,fabricationGuide,fabricationPose,validateFabrication} from '../kernel/index.mjs';
 import {DesignError} from '../kernel/spec.mjs';
 import {ENGINE_VERSION} from '../kernel/version.mjs';
 import {API_VERSION} from './protocol.mjs';
@@ -21,6 +21,9 @@ const METHODS={
  'describe':{required:[],optional:[]},
  'design.build':{required:['spec'],optional:[]},
  'design.pose':{required:['spec','state'],optional:[]},
+ 'fabrication.describe':{required:['spec'],optional:[]},
+ 'fabrication.pose':{required:['spec','state'],optional:[]},
+ 'fabrication.validate':{required:['spec'],optional:['options']},
  'design.validate':{required:['spec'],optional:['options']},
  'design.templates':{required:['spec'],optional:['options']},
  'design.referencePoses':{required:['spec'],optional:['options']},
@@ -75,7 +78,7 @@ export function handleRequest(request){
   if(request.apiVersion!==API_VERSION)throw new DesignError('UNSUPPORTED_VERSION','/apiVersion','Unsupported API version.',{supported:API_VERSION});
   if(typeof request.method!=='string'||!Object.hasOwn(METHODS,request.method))throw new DesignError('UNKNOWN_METHOD','/method','Unknown API method.');
   const {required,optional}=METHODS[request.method],p=request.payload;shape(p,required,optional,'/payload');
-  if(p.options!==undefined)shape(p.options,[],request.method==='design.validate'?['samples','assemblySamples']:request.method==='design.templates'?['stockSizeMm']:['mode','samples'],'/payload/options');
+  if(p.options!==undefined)shape(p.options,[],request.method==='design.validate'?['samples','assemblySamples']:request.method==='design.templates'?['stockSizeMm']:request.method==='fabrication.validate'?['samples']:['mode','samples'],'/payload/options');
   let value;
   switch(request.method){
    case 'intent.describe':value={schema:'origami-box/editor/1',initialIntent:newIntent(),blocks:blockCatalog,features:featureCatalog,fields:intentFields,textSyntax:'Controlled English; semicolon-separated clauses. Unknown clauses are rejected.'};break;
@@ -113,6 +116,9 @@ export function handleRequest(request){
    case 'describe':value={apiVersion:API_VERSION,methods:Object.keys(METHODS),defaultSpec:defaultSpec(),unsupported:['independently chosen rear rise in direct-hinge topology','noncongruent plates','outward folding','pressure prediction'],units:'mm'};break;
    case 'design.build':value=buildDesign(p.spec);break;
    case 'design.pose':value=evaluatePose(p.spec,p.state);break;
+   case 'fabrication.describe':value=fabricationGuide(p.spec);break;
+   case 'fabrication.pose':value=fabricationPose(p.spec,p.state);break;
+   case 'fabrication.validate':value=validateFabrication(p.spec,p.options);break;
    case 'design.validate':value=validateDesign(p.spec,p.options);break;
    case 'design.templates':value=templateGeometry(p.spec,p.options);break;
    case 'design.referencePoses':value=referencePoses(p.spec,p.options);break;

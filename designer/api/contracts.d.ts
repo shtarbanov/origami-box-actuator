@@ -30,6 +30,28 @@ export interface Design {
 }
 export interface Pose {schema:'origami-box/pose/1';state:PoseState;panels:Panel3D[];placements:{id:string;originMm:Vec3;rotationRowMajor:[Vec3,Vec3,Vec3]}[];contacts:[string,string][];interpretation:string}
 export interface Segment {from:Vec2;to:Vec2}
+/** Progress is local to the transition INTO this stage, not actuation/pressure. */
+export interface FabricationState {stageId:string;progress?:number}
+export interface FabricationStage {id:string;operation:'prepare'|'fold'|'seal'|'inlet';title:string;instruction:string}
+export interface FabricationGuide {
+ schema:'origami-box/fabrication-guide/1';supported:boolean;stages:FabricationStage[];
+ framePointsMm?:Vec3[];diagnostics:Diagnostic[];
+}
+export interface FabricationPose {
+ schema:'origami-box/fabrication-pose/1';state:Required<FabricationState>;stage:FabricationStage;
+ panels:Panel3D[];placements:{id:string;originMm:Vec3;rotationRowMajor:Vec3[];shapeMm:Vec2[]}[];contacts:[];
+ cues:{id:string;role:'fold'|'seal';pointsMm:[Vec3,Vec3];panelId?:string;active?:boolean;sealed?:boolean}[];
+ film:Panel3D[];inlet:{pointMm:Vec3;active:boolean;installed:boolean};sealedIds:string[];
+ activeSeal:null|{id:string;pairedLinesMm:[Vec3,Vec3][];status:'coincident-ideal-guides'};
+ evidence:{panelModel:string;filmModel:string;finiteThickness:string};
+}
+export interface FabricationValidation {
+ schema:'origami-box/fabrication-validation/1';samplesPerStage:number;numericalPass:boolean;
+ maxDistanceErrorMm:number;maxAreaErrorMm2:number;maxHingeErrorMm:number;
+ maxClosureErrorMm:number;maxSealMismatchMm:number;maxTransitionErrorMm:number;
+ unexpectedSurfaceCrossings:{stageId:string;progress:number;pairs:[number,number][]}[];
+ evidence:Record<string,string>;
+}
 export interface Template {
  panels:{id:string;pointsMm:Vec2[]}[];cuts:Segment[];folds:Segment[];
  seals:(Segment&{role:string;status:'unverified'})[];
@@ -47,6 +69,9 @@ export type Request = {apiVersion:'origami-box/api/1';id?:string|number}&(
  | {method:'describe';payload:Record<string,never>}
  | {method:'design.build';payload:{spec:DesignSpec}}
  | {method:'design.pose';payload:{spec:DesignSpec;state:PoseState}}
+ | {method:'fabrication.describe';payload:{spec:DesignSpec}}
+ | {method:'fabrication.pose';payload:{spec:DesignSpec;state:FabricationState}}
+ | {method:'fabrication.validate';payload:{spec:DesignSpec;options?:{samples?:number}}}
  | {method:'design.templates';payload:{spec:DesignSpec;options?:{stockSizeMm?:Vec2}}}
  | {method:'design.validate';payload:{spec:DesignSpec;options?:{samples?:number;assemblySamples?:number}}}
  | {method:'design.referencePoses';payload:{spec:DesignSpec;options?:{mode?:'actuation'|'assembly';samples?:number}}}
