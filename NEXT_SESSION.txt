@@ -1,5 +1,5 @@
 ORIGAMI BOX DESIGNER — NEXT SESSION HANDOFF
-Updated: 2026-11-21 (Asia/Seoul)
+Updated: 2026-11-27 (Asia/Seoul)
 
 1. AUTHORITATIVE CODE / GIT
 Repository folder:
@@ -62,46 +62,59 @@ https://github.com/shtarbanov/origami-box-actuator/issues/2#issuecomment-7063480
 Both reference PR #3, distinguish local implementation from deployment, and remain OPEN. Do not repost duplicates or auto-close before review.
 Issue #2 proposes basic length/width/deployed height + fabrication dimensions, with height-reference semantics to agree before freezing the API.
 
-5. NEW PRIORITY — STEP-BY-STEP FABRICATION GUIDE (USER REQUEST; NOT IMPLEMENTED)
-User recalls an old Run animation that folded the flat stencil into the assembled object. They now want a MANUFACTURING TUTORIAL, not just continuous actuation playback.
-UI: a compact Assembly/Fabrication guide button near the lower viewer/motion area, not more permanently exposed controls. Opening it shows <  step counter/title  > .
-> advances ONE folding or sealing operation; < returns to the previous operation. A short transition animation is fine, but no automatic play-through as the main interaction.
-Start from the flat panel layout. Sealing steps should emphasize matching/overlapped seal lines and show a brief or stage-visible "Seal here" cue.
-Preserve normal Play/Fold actuation preview as a separate mode. Leaving the guide must restore the user's design/view/edit state. Do not mutate parameters or save tutorial progress into the kernel spec.
+5. IMPLEMENTED — STEP-BY-STEP FABRICATION GUIDE
+The committed designer now has a compact Fabrication guide button below the viewer.
+It starts from the flat stencil. < / > advance and reverse ONE actual manufacturing operation:
+layout -> half-fold about E-J -> longitudinal seal -> inlet -> open pouch into box -> inward side folds and flatten -> front seal -> rear seal.
+Seal stages highlight paired coincident ideal guide lines and show Seal here.
+Normal Play/Fold remains a separate actuation preview. Exiting restores the exact previous viewer, camera and actuation state.
+Guide mode temporarily makes design editing inert; orbit/pan/zoom still work.
 
-Known real fabrication workflow from the user:
-- Prepare/cut plastic panels using cutting template, chamfer corners about 1 mm, attach to film using folding template and mark fold/seal lines.
-- First fold in half along the SECOND solid marked line; trim excess film with sealing allowance; seal overlapped dashed lines (first longitudinal closure). Roll seal 10 times; trim remainder.
-- Tape the 3D printed inlet base, trim tape, attach at the marked circle, press inside film for adhesion, and puncture the air hole from inside.
-- Lift panels to form the box, then push/fold the marked side portions inward into the >< profile.
-- Seal overlapped end lines at BOTH ends; trim excess film.
-Old photos if needed: C:\Users\adban\OneDrive\문서\snu\soft act\new tuto
-Not every preparation action requires a 3D animation. Focus first on visible fold/seal operations and inlet marker/explanation.
+Architecture:
+- kernel/fabrication-guide.mjs owns stage ordering/instructions, rigid panel maps, film allowance guides, seal pairs, inlet and fixed viewing envelope.
+- API methods fabrication.describe, fabrication.pose, fabrication.validate carry JSON through the existing Worker.
+- ui/fabrication-player.mjs owns only navigation/timing and cancellation. Every intermediate pose comes from the API, with no vertex interpolation in the UI.
+- ui/fabrication-render.mjs draws returned semantic cues, with no fold equations or hardcoded stage sequence.
+- ui/block-app.mjs only connects those modules to the editor and restores state on exit.
+- docs/fabrication-guide.md records the geometric construction and limitations.
 
-6. REUSE POINTS / CRITICAL GEOMETRY CAUTION
-The old assembly functionality STILL EXISTS in the kernel, but is not exposed in the main UI:
-- designer/kernel/validate.mjs: assembly(input, progress=1, opening=.75), assemblyAudit().
-- designer/kernel/index.mjs: evaluatePose(spec,{mode:'assembly',progress,targetOpening:.75}); API design.pose supports this state.
-- designer/ui/async-controller.mjs: pose(), frame(spec,'assembly').
-- designer/kernel/geometry.mjs: unfold(), model(), panelWorld(); net.hinges, net.seam, net.ends, folds and seals metadata.
-Main normal strip order: bottom, left-lower, left-upper, top, right-upper, right-lower.
-Hinge edges: A-D, K-L, E-J, F-G, M-N; closing seam B-C. Solid hinge indices [2,3,5] in the unfolding loop.
-For the ordinary strip, the second marked solid crease corresponds to the boundary before the top panel (E-J). Verify coordinates/orientation instead of relying only on this note.
+Geometric construction (ordinary rectangular, two-wall, equal-rise box only):
+Half folding leaves the top translated by -2l in x relative to bottom; it is NOT the old collapsed actuation pose.
+After longitudinal sealing, translate the top by d=(-2l*cos(theta),0,2l*sin(theta)), theta 0..pi/2, with side midhinges at d/2 relative to corresponding bottom corners.
+This opens a closed parallelogram with straight two-panel walls into the upright box without changing any panel metric or opening the first seam.
+Then use the inward branch from opening=1 down to 0. At the flattened endpoint, paired top/bottom end sealing lines actually coincide at y=-(l+c) and y=L+l+c.
+The two end seals are performed at this flattened configuration, not with separated lines on an open box.
+Other geometries explicitly return unsupported diagnostics. Do not invent their manufacturing paths.
+Old assembly() and design.pose assembly are retained as legacy synchronous interpolation, not used by this guide.
 
-CRITICAL: current assembly() interpolates ALL hinge angles synchronously from the open net to a .75-open target. It is NOT a validated first-fold/seal/side-fold/end-seal manufacturing sequence. Do NOT simply divide progress into arbitrary equal segments and label them as fabrication steps.
-The first half-fold plus sealed pouch can be a different planar configuration from the collapsed pose of the existing actuation path. Establish a continuous rigid-panel, seam-preserving path between stages; do not jump between them, stretch panels, or change their areas.
-End film is not modeled as a complete 3D membrane. Current seal guides are experimental. Do not claim paired end-film lines truly coincide unless modeled/verified; clearly separate instructional markers from a manufacturing certificate.
-First deliver a validated sequence for the ordinary rectangular box. Do not invent a plausible animation for every generalized geometry; return a supported/unsupported diagnostic from the kernel when necessary.
+Evidence:
+- 72 Node tests passed, plus every standalone legacy regression group.
+- Four rectangular dimension/gap/thickness sets checked at 151 samples per stage for vertex distances, areas, hinge endpoints, closed seam, sealing endpoints and transition continuity; no interior zero-thickness crossings found.
+- Default 51-sample errors were about 1.8e-14 mm (distance), 1.4e-12 mm^2 (area), 1.2e-14 mm (seam), 1.2e-14 mm (transition).
+- Real browser: all 8 stages advanced, last Next disabled, all 7 reversals returned byte-identical starting SVG, exit returned byte-identical original preview.
+- Test log: ../outputs/Fabrication_Guide_Tests.log (outside repository).
 
-Suggested architecture for the next feature:
-- Kernel/neutral assembly module returns stage IDs, operation type (fold/seal/inlet), rigid placements, geometric cue anchors/line pairs and support diagnostics.
-- API exposes assembly stages and a pose/transition for stage + local progress. Keep existing design.pose assembly compatibility where possible.
-- UI owns labels, < > buttons, transition timing and "Seal here" rendering. No folding equations in DOM handlers.
-- Use ONE camera frame covering the flat net and all stages; avoid automatic zoom changes or perspective tricks that make rigid plate areas appear to change.
-- Test panel distances/areas, continuous transitions, closure after sealing, and agreement of seal cue coordinates; verify controls forward/back and clean exit in the browser.
+Limits:
+All paths use ideal zero-thickness mid-surfaces. Flat stacking is deliberate; positive-thickness offsets/compliant hinges are not solved.
+Translucent top/bottom film allowance strips are schematic. Complete membrane/gusset folding, inlet hardware, airtight seal widths and inflation after end sealing are not simulated.
+Matched ideal guide endpoints are verified; do not call this a finite-thickness manufacturing certificate.
 
-7. NEXT SESSION START
-Read this file and designer/README.md, inspect git status/log and PR #3, then start the staged fabrication guide above. Avoid adding unrelated shape types or doing a large GUI rewrite in the same change.
-Current editor entry: designer/ui/block-app.mjs (still large; reduce state coupling carefully).
-Supporting view modules: ui/render.mjs, ui/selection.mjs, ui/label-layout.mjs, ui/drag-session.mjs, view-controls.mjs.
-Keep the compact English UI. User dislikes clutter, unnecessary confirmations, hidden account changes, and unsupported geometric claims.
+6. NEW — WINDOWS DOUBLE-CLICK LAUNCHER
+Ali found terminal-based opening too complicated. Double-click Open Designer.cmd in the repository root.
+It calls designer/tools/open-designer.ps1, starts a hidden loopback server and opens the default browser automatically.
+Node.js OR Python must already be installed once; there is no npm install or package dependency.
+It scans 4180..4199, reuses only a server whose identity endpoint points to this checkout, and skips other occupied ports.
+The earlier Python preview still occupies 4180. The new launcher currently opens http://127.0.0.1:4181/designer/ . Do not hardcode that port in instructions; the launcher prints/opens its selected URL.
+Running the launcher twice with -NoBrowser returned the same URL and reused one matching Node server.
+server.mjs now supports --repository and --port while preserving npm start's 4173/root behavior.
+local_server.py is the standard-library Python fallback. Node and Python serving/module MIME paths were smoke-tested.
+PowerShell test without opening another tab:
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File designer/tools/open-designer.ps1 -NoBrowser
+This environment currently has node but not npm in PATH; node tests/run.mjs from designer/ runs the exact package test script.
+
+7. NEXT WORK / DO NOT OVERCLAIM
+- Get user/Ali feedback on fabrication guide clarity and the ordinary-box path before generalizing to tilted/tapered/direct-hinge designs.
+- Full film end gussets and finite-thickness stack offsets remain separate kernel work.
+- Physical touch screen and actual manufacturing still need physical validation.
+- Production Pages/root index/CNAME were not changed. Keep this work on feat/box-designer-separated / PR #3 until review/merge.
+- Keep kernel/API/UI commits separate. Do not work in designer-lab.

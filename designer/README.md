@@ -16,6 +16,12 @@ The GUI calls the API; it does not import the geometry solver. The kernel has no
 
 ## Run locally
 
+On Windows, double-click **Open Designer.cmd** in the repository root. It starts a
+hidden loopback-only server and opens the designer in your default browser.
+Subsequent launches reuse the server for this checkout; occupied ports belonging
+to other apps are skipped. Node.js or Python must be installed once. Nothing is
+installed by the launcher, and no terminal commands are needed for normal use.
+
 Install Node.js, then from this folder:
 
 ```sh
@@ -27,6 +33,28 @@ Run `npm test` from this folder to run all checks.
 
 To serve the whole repository instead, run `python -m http.server 4180` from the repository root and open http://127.0.0.1:4180/designer/ .
 Use HTTP(S), rather than opening index.html with file://, because the app loads ES modules and a Worker.
+
+## Fabrication guide
+
+Choose **Fabrication guide** below the 3D viewer, then use **< / >** (or left/right
+arrow keys when the step controls have focus). It starts from the flat stencil:
+half fold, longitudinal seal, inlet, open into a box, fold both walls inward and
+flatten, front seal, rear seal. Back rewinds the explanation; it does not imply a
+physical heat seal can be undone. Exit restores the previous design, actuation
+position and camera. Normal Play remains an independent actuation preview.
+
+`kernel/fabrication-guide.mjs` owns the sequence, instructions, rigid placements,
+fold axes, seal pairs, inlet and a fixed viewing envelope. The versioned
+`fabrication.describe`, `fabrication.pose` and `fabrication.validate` API calls
+expose these data through the Worker. `ui/fabrication-player.mjs` only navigates
+and times API samples; `ui/fabrication-render.mjs` draws the returned cues.
+
+This first path supports rectangular boxes with equal rises and both side walls.
+Other shapes get an explicit kernel diagnostic. Zero-thickness panel distances,
+areas, hinge continuity, seam closure and sealing-guide coincidence are tested.
+Coplanar stacking is intentional; finite-thickness stacking and complete flexible
+end-film/gusset behavior are not certified. See
+[the geometric construction](docs/fabrication-guide.md).
 
 ## Static hosting
 
