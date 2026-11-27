@@ -32,7 +32,9 @@ export interface Pose {schema:'origami-box/pose/1';state:PoseState;panels:Panel3
 export interface Segment {from:Vec2;to:Vec2}
 /** Progress is local to the transition INTO this stage, not actuation/pressure. */
 export interface FabricationState {stageId:string;progress?:number}
-export interface FabricationStage {id:string;operation:'prepare'|'fold'|'seal'|'inlet';title:string;instruction:string}
+export interface FabricationStage {id:string;operation:'prepare'|'fold'|'seal'|'inlet';title:string;instruction:string;transition:{durationMs:number}}
+export interface SceneMesh {id:string;role:string;verticesMm:Vec3[];faces:number[][];schematic?:boolean}
+export interface SceneDetail {id:string;label:string;meshIds:string[];framePointsMm:Vec3[];targetMm:Vec3}
 export interface FabricationGuide {
  schema:'origami-box/fabrication-guide/1';supported:boolean;stages:FabricationStage[];
  framePointsMm?:Vec3[];diagnostics:Diagnostic[];
@@ -41,7 +43,9 @@ export interface FabricationPose {
  schema:'origami-box/fabrication-pose/1';state:Required<FabricationState>;stage:FabricationStage;
  panels:Panel3D[];placements:{id:string;originMm:Vec3;rotationRowMajor:Vec3[];shapeMm:Vec2[]}[];contacts:[];
  cues:{id:string;role:'fold'|'seal';pointsMm:[Vec3,Vec3];panelId?:string;active?:boolean;sealed?:boolean}[];
- film:Panel3D[];inlet:{pointMm:Vec3;active:boolean;installed:boolean};sealedIds:string[];
+ film:Panel3D[];inlet:{pointMm:Vec3;active:boolean;installed:boolean;markerVisible:boolean};sealedIds:string[];
+ meshes:SceneMesh[];details:SceneDetail[];
+ action:null|{kind:'press-seal';phase:'approach'|'press'|'release';pressFraction:number;bondFraction:number;schematic:true};
  activeSeal:null|{id:string;pairedLinesMm:[Vec3,Vec3][];status:'coincident-ideal-guides'};
  evidence:{panelModel:string;filmModel:string;finiteThickness:string};
 }
