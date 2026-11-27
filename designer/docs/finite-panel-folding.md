@@ -1,5 +1,9 @@
 # Corrected directions and finite plastic panels
 
+Follow-up: [end-film closure study](end-film-folding.md) adds explicit deformable
+end-film layers after both walls are inward. The original viewer below retains
+its local-strip scope; the new separate viewer reports its own material limits.
+
 The user corrected the fabrication branch: **A down, B up, C unchanged/up**.
 After the first long seal, the opposite side wall (used for the large fold) must
 also be put inward before either end is sealed. The current offline viewer uses
