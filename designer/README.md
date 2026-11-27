@@ -71,6 +71,12 @@ folds, pre-folded free margins and a finite heated footprint. It tests a local
 external-fin seal, not a complete manufacturing route. No candidate result
 unlocks the public guide. See [construction and limits](docs/fabrication-guide.md).
 
+A separate [wall-tuck study and offline step viewer](docs/wall-tuck-study.md)
+tests doubling one wall, swinging it inward and folding the remaining strip.
+It checks the retained rectangular film blank and exposed two-layer footprint,
+including failed fold directions and the wrong final hinge. Generate it with
+`node designer/tools/study-wall-tuck.mjs`. It remains first-seal research.
+
 ## Static hosting
 
 The runtime consists of HTML, CSS and JavaScript; the server.mjs file is only a local file server.

@@ -95,6 +95,11 @@ geometry, but also returns `validationScope: 'sampled-rigid-panel-geometry'`,
 
 ## Local external-fin candidate
 
+The newer [wall-tuck study](wall-tuck-study.md) implements the user's proposed
+double-and-swing order and finds an exposed two-layer first-seal footprint on
+the existing net in the checked nonzero-rise cases. The external-fin study below
+is retained as a separate exploratory alternative, not the current route.
+
 ![Kernel-generated film-fold study](figures/external-fin.svg)
 
 `kernel/film-seal-study.mjs` is pure, headless research code, separate from the
