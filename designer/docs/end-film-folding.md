@@ -92,10 +92,37 @@ unverified.
 ## Other shapes and limitations
 
 Rectangle, taper, longitudinal-tilt and lateral-tilt examples pass sampled end-film
-geometry checks. Combined taper plus longitudinal tilt is explicitly **blocked**:
-extended hinge patches disagree by about 0.0005143 mm where they meet outside
-the plastic. Vertex deduplication must not hide this defect. A continuous
-deformable transition map or another crease layout is needed for that case.
+geometry checks. Combined taper plus longitudinal tilt now has an explicit
+source-blank plan; the original failed blank remains rejected.
+
+For the 80/64 mm, rise 30/18 mm combined example, extended hinge strips meet in
+distant source waste, creating the former 0.0005143 mm discrepancy. A uniform
+rectangular source margin must both cover the complete welds (approximately
+12.49378 mm minimum here) and avoid that crease-extension junction (local limit
+approximately 24.96034 mm). The planner selects 19 mm and inserts **Trim distant
+waste while flat** before any folding. It records the original conflict's UV
+position and exact cut contour. Retained boundaries agree to about 2.83e-13 mm;
+plastic, hinge gap and end allowance are unchanged. Tolerances are not increased
+and mismatched nodes are not merged.
+
+For steeper profiles (for example rise ratio 0.4), a rectangular crop alone
+cannot retain all weld material while avoiding the distant junction. The kernel
+instead clips only the mapped end tails, retaining the full long free margins
+and the complete end heat bands plus an explicit 2 mm example tail. The resulting
+flat source contour is checked to be one connected, hole-free piece, to conserve
+retained UV area and to contain every plastic panel. This is an actual **cut
+before folding**, not permission to discard an inconvenient patch from a layer
+audit. Later longitudinal-fin trimming remains separate and explicit.
+
+The primary combined example passes 61 frames per end, retains its prior weld,
+and preserves a plastic-free inlet centreline with minimum rear-cap gap about
+0.64408 mm. Required maximum principal film strain is about 0.68893%, with no
+assumption that the real film permits it. A 3×3 width/rise-ratio grid also checks
+the automatically planned domains, rigid-panel paths, end-film contacts, weld
+coverage and airway conditions. See the generated parameter sweep for results;
+The nine checked cases pass these conditions; no claim extends to all possible parameter values or alternative crease layouts.
+
+![Explicit source-blank cut and the discarded conflicting crease junction](figures/combined-film-blank.svg)
 
 Complete earlier membrane motion, continuous-time collision certification,
 finite film thickness, actual material strain limits and heater/physical tests
@@ -106,6 +133,8 @@ this research result does not automatically enable it.
 
 ```sh
 node designer/tools/study-end-film.mjs
+node designer/tools/study-end-film.mjs designer/verification/end-film-combined --combined
+node designer/tools/check-end-film-grid.mjs
 node designer/tests/run.mjs
 ```
 
@@ -115,6 +144,8 @@ frames, overview SVG and section SVG are generated alongside it.
 
 - Kernel: atlas, press geometry, validation, operation descriptions, tool meshes
   and complete supplied frames.
+- `end-film-blank.mjs`: explicit pre-fold cut contours, original conflict
+  diagnostics, retained material coverage and candidate domain selection.
 - Tool: filesystem output, case sweep, colours and camera framing.
 - GUI: orthographic projection, visibility toggles and reversible playback;
   no solver, layer decisions or vertex interpolation.
