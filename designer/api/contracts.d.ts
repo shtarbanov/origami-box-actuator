@@ -51,6 +51,8 @@ export interface FabricationPose {
 }
 export interface FabricationValidation {
  schema:'origami-box/fabrication-validation/1';samplesPerStage:number;numericalPass:boolean;
+  validationScope:'sampled-rigid-panel-geometry';manufacturingReady:false;
+  guideAvailable:boolean;sealLayerAccess:'unverified';
  maxDistanceErrorMm:number;maxAreaErrorMm2:number;maxHingeErrorMm:number;
  maxClosureErrorMm:number;maxSealMismatchMm:number;maxTransitionErrorMm:number;maxPanelMapErrorMm:number;
  flatStackContactSamples:number;
