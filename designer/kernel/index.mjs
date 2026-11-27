@@ -10,6 +10,7 @@ import {rearApexRelief,ASSEMBLY_TARGET} from './fabrication.mjs';
 import {sphericalPose} from './spherical-motion.mjs';
 import {ENGINE_VERSION} from './version.mjs';
 export {defaultSpec,legacyToSpec} from './spec.mjs';
+export {fabricationGuide,fabricationPose,validateFabrication} from './fabrication-guide.mjs';
 const VERSION='origami-box/kernel/1';
 const capabilities={rigidGeometry:true,constructedFoldingPath:true,passiveMotionPrediction:false,pressureModel:false,airtightFilmModel:false,continuousCollisionCertificate:false};
 function resolve(spec){
