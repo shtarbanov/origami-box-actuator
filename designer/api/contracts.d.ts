@@ -52,7 +52,8 @@ export interface FabricationPose {
 export interface FabricationValidation {
  schema:'origami-box/fabrication-validation/1';samplesPerStage:number;numericalPass:boolean;
  maxDistanceErrorMm:number;maxAreaErrorMm2:number;maxHingeErrorMm:number;
- maxClosureErrorMm:number;maxSealMismatchMm:number;maxTransitionErrorMm:number;
+ maxClosureErrorMm:number;maxSealMismatchMm:number;maxTransitionErrorMm:number;maxPanelMapErrorMm:number;
+ flatStackContactSamples:number;
  unexpectedSurfaceCrossings:{stageId:string;progress:number;pairs:[number,number][]}[];
  evidence:Record<string,string>;
 }
