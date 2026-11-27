@@ -94,7 +94,7 @@ test('exiting cancels in-flight samples, including unsupported/loading paths',as
 test('seal rendering uses kernel cue coordinates and a stable camera without solver imports',()=>{
  const s=defaultSpec(),camera=cameraForFrame(frameFromPoints(fabricationGuide(s).framePointsMm));
  for(const stageId of ['long-seal','front-seal','rear-seal']){
-  const p=fabricationPose(s,{stageId}),svg=fabricationSVG(p,camera,defaultView());assert.match(svg,/Seal here/);assert.match(svg,/guide-film/);
+  const p=fabricationPose(s,{stageId}),svg=fabricationSVG(p,camera,defaultView());assert.match(svg,/data-scene-role="tool"/);assert.match(svg,/data-scene-role="bond"/);assert.match(svg,/data-scene-role="film"/);
   assert.equal(p.activeSeal.pairedLinesMm.length,2);
   const [a,b]=p.activeSeal.pairedLinesMm;assert.ok(Math.min(distance(a[0],b[0])+distance(a[1],b[1]),distance(a[0],b[1])+distance(a[1],b[0]))<1e-7);
  }
