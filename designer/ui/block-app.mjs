@@ -1,7 +1,9 @@
 import {createWorkerClient} from '../api/worker-client.mjs';
 import {createAsyncController} from './async-controller.mjs';
-import {cameraForFrame} from './camera.mjs';
+import {cameraForFrame,frameFromPoints} from './camera.mjs';
 import {sceneSVG} from './render.mjs';
+import {createFabricationPlayer} from './fabrication-player.mjs';
+import {fabricationSVG} from './fabrication-render.mjs';
 import {selectionTarget,directionColors,modelPick} from './selection.mjs';
 import {createLabelLayout,createFrameScheduler} from './label-layout.mjs';
 import {createDragSession} from './drag-session.mjs';
@@ -17,6 +19,9 @@ let revision=0,drawRevision=0,queue=Promise.resolve(),paper='A4',page='folding',
 let selectedSide=null,selectedField='frontWidth',drag=null,sliderActive=false,playing=false,animationId=null,dragSequence=0;
 let selection=null,handlesSpecKey=null;
 let displayed=null;
+let guideSession=null;
+let guideOpening=false;
+const fabrication=createFabricationPlayer(client.call,renderFabrication,{reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches});
 const labelLayout=createLabelLayout();
 const display={directions:true,labels:true,highlights:true,guides:true,handles:true};
 try{const saved=JSON.parse(localStorage.getItem('origami-box-view/1'));for(const key of Object.keys(display))if(typeof saved?.[key]==='boolean')display[key]=saved[key];}catch{}
@@ -36,6 +41,7 @@ function remember(key,origin=intent){
 function persist(){try{sessionStorage.setItem('origami-box-intent/1',JSON.stringify({intent,paper}));}catch{}}
 function pending(){stop();progress=1;$('progress').value=100;$('status').textContent='Updating…';$('save').disabled=true;$('download-svg').disabled=true;$('print').disabled=true;}
 function command(action,key=null,gesture=null){
+ if(guideSession)return Promise.resolve();
  const ticket=++revision;pending();
  queue=queue.catch(()=>{}).then(async()=>{
   const request=gesture?gesture.request(action):{intent:structuredClone(intent),command:action};
@@ -155,6 +161,7 @@ async function accept(next,ticket){
  }catch(e){if(ticket===revision)showError(e.message);}
 }
 async function draw(){
+ if(guideSession)return;
  if(!validReport)return;const ticket=++drawRevision,key=JSON.stringify([validReport.spec,progress]);
  if(scene?.key!==key){
   const spec=structuredClone(validReport.spec);
@@ -168,6 +175,12 @@ function camera(){return frame?cameraForFrame(frame,azimuth,elevation):null;}
 function screenPoint(point){return viewPoint(camera().project(point),view);}
 function paint(){schedulePaint();}
 function paintScene(){
+ if(guideSession&&fabrication.state.pose&&frame){
+  let svg=fabricationSVG(fabrication.state.pose,camera(),view);
+  const viewportWidth=330*preview.clientWidth/Math.max(1,preview.clientHeight);
+  svg=svg.replace('viewBox="0 0 720 330"',`viewBox="${360-viewportWidth/2} 0 ${viewportWidth} 330"`);
+  preview.innerHTML=svg;return;
+ }
  if(!scene||!frame)return;
  const projectionCamera=camera(),projectionView={...view},screenPoint=p=>viewPoint(projectionCamera.project(p),projectionView);
  const currentSelection=selection?.blockId?{...selection,side:intent.blocks.find(b=>b.id===selection.blockId)?.side??selection.side}:selection;
@@ -229,6 +242,46 @@ function selectModelPart(part,focus=true){
  if(focus){const input=$('model-editor').querySelector('input:not([readonly]),select');input?.focus({preventScroll:true});if(input?.type==='number')input.select();}
 }
 function stop(){playing=false;if(animationId!==null)cancelAnimationFrame(animationId);animationId=null;$('play').textContent='Play';}
+
+function renderFabrication(state){
+ if(!guideSession)return;
+ if(!state.active){
+  const saved=guideSession;guideSession=null;({frame,view,azimuth,elevation,scene,displayed}=saved);
+  document.body.classList.remove('fabricating');
+  for(const [element,inert] of saved.inert)element.inert=inert;
+  $('fabrication-guide').hidden=true;$('fabrication-toggle').textContent='Fabrication guide';$('fabrication-toggle').setAttribute('aria-expanded','false');
+  $('status').textContent=saved.status;preview.setAttribute('aria-label',saved.ariaLabel);
+  if(state.error){$('edit-feedback').textContent=state.error;$('edit-feedback').hidden=false;}
+  paint();return;
+ }
+ $('guide-prev').disabled=state.busy||state.index===0;
+ $('guide-next').disabled=state.busy||!state.guide||state.index===state.guide.stages.length-1;
+ $('fabrication-guide').setAttribute('aria-busy',String(state.busy));
+ $('status').textContent='Fabrication guide';
+ if(state.guide){
+  if(!guideSession.framed){frame=frameFromPoints(state.guide.framePointsMm);view=defaultView();azimuth=-18;elevation=55;guideSession.framed=true;}
+  const stage=state.guide.stages[state.index];
+  $('guide-title').textContent=`${state.index+1} / ${state.guide.stages.length} · ${stage.title}`;
+  $('guide-instruction').textContent=stage.instruction;
+  const v=state.validation;if(v)$('guide-checks').textContent=`Rigid distance error ${v.maxDistanceErrorMm.toExponential(2)} mm · hinge / closure error ${Math.max(v.maxHingeErrorMm,v.maxClosureErrorMm).toExponential(2)} mm · matched seal guides ${v.maxSealMismatchMm.toExponential(2)} mm. Ideal mid-surfaces; flat stacking, film pleats and thickness need physical validation. Back steps rewind the explanation.`;
+ }
+ if(state.error){$('guide-instruction').textContent=state.error;}
+ paint();
+}
+async function toggleFabrication(){
+ if(guideSession){fabrication.close();return;}
+ if(guideOpening)return;guideOpening=true;
+ try{
+ await queue;if(!validReport||report?.status!=='resolved')return;
+ stop();++drawRevision;modelDown=null;
+ guideSession={frame,view:{...view},azimuth,elevation,scene,displayed,status:$('status').textContent,ariaLabel:preview.getAttribute('aria-label'),inert:[...document.querySelectorAll('.relations,.dimensions,header nav,.templates-head,#model-editor,.selection')].map(e=>[e,e.inert])};
+ for(const [element] of guideSession.inert)element.inert=true;
+ document.body.classList.add('fabricating');$('fabrication-guide').hidden=false;$('fabrication-toggle').textContent='Exit guide';$('fabrication-toggle').setAttribute('aria-expanded','true');
+ $('guide-title').textContent='Loading fabrication steps…';$('guide-instruction').textContent='';$('guide-checks').textContent='';
+ preview.setAttribute('aria-label','Fabrication guide. Left drag pans, right drag rotates, wheel or pinch zooms. Use the previous and next step buttons below.');
+ await fabrication.open(validReport.spec);
+ }finally{guideOpening=false;}
+}
 function download(name,value,type){const url=URL.createObjectURL(new Blob([value],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function addBlock(feature){const existing=intent.blocks.find(b=>catalog.blocks.find(c=>c.op===b.op)?.feature===feature&&b.strength==='required');if(existing){selectBlock(existing.id);document.querySelector(`[data-block-id="${existing.id}"]`)?.scrollIntoView({block:'nearest'});return;}command({type:'set-feature',feature,side:selectedSide??'left',source:{kind:'block'}}).then(()=>{const b=intent.blocks.find(b=>catalog.blocks.find(c=>c.op===b.op)?.feature===feature);if(b)selectBlock(b.id);});}
 function editBlock(id,value){const b=selectedBlockById(id),entry=catalog.blocks.find(c=>c.op===b?.op);return entry?.feature?{type:'set-feature',feature:entry.feature,mode:b.op==='tilt'?'angle':'ratio',value,source:{kind:'block'}}:{type:'update-block',id,value};}
@@ -325,6 +378,7 @@ let modelDown=null;
 new ResizeObserver(()=>{labelLayout.reset();paint();}).observe(preview);
 const svgPoint=e=>{const matrix=preview.querySelector('svg')?.getScreenCTM();return matrix?new DOMPoint(e.clientX,e.clientY).matrixTransform(matrix.inverse()):null;};
 preview.addEventListener('pointerdown',e=>{
+ if(guideSession)return;
  const handle=e.target.closest('[data-handle]'),sideControl=e.target.closest('[data-side]');
  const face=e.target.closest('[data-face]')?.dataset.face,side=face?handles?.surfaces.find(s=>s.panelId===face)?.side:null;
  if(sideControl||(e.ctrlKey&&side)){
@@ -353,10 +407,14 @@ const endDrag=e=>{if(!drag||drag.id!==e.pointerId)return;e.stopImmediatePropagat
 preview.addEventListener('pointerup',endDrag,true);preview.addEventListener('pointercancel',e=>{if(drag?.id===e.pointerId)drag=null;},true);
 preview.addEventListener('pointerup',e=>{if(modelDown?.id!==e.pointerId)return;const pick=modelDown;modelDown=null;if(!pick.moved)queueMicrotask(()=>selectModelPart(pick.part,pick.focus));},true);
 preview.addEventListener('pointercancel',()=>{modelDown=null;},true);
-preview.addEventListener('keydown',e=>{if(!['Enter',' '].includes(e.key))return;const side=e.target.closest('[data-side]')?.dataset.side,edge=e.target.closest('[data-edge-pick]')?.dataset.edgePick,panelId=e.target.closest('[data-face]')?.dataset.face;if(side||edge||panelId){e.stopImmediatePropagation();e.preventDefault();if(side)command({type:'toggle-wall',side,source:{kind:'direct'}});else selectModelPart({edge,panelId});}},true);
+preview.addEventListener('keydown',e=>{if(guideSession||!['Enter',' '].includes(e.key))return;const side=e.target.closest('[data-side]')?.dataset.side,edge=e.target.closest('[data-edge-pick]')?.dataset.edgePick,panelId=e.target.closest('[data-face]')?.dataset.face;if(side||edge||panelId){e.stopImmediatePropagation();e.preventDefault();if(side)command({type:'toggle-wall',side,source:{kind:'direct'}});else selectModelPart({edge,panelId});}},true);
 bindViewControls(preview,{rotate(dx,dy){const a=orbitAngles(azimuth,elevation,dx,dy);azimuth=a.azimuth;elevation=a.elevation;paint();},pan(dx,dy){view.panX+=dx;view.panY+=dy;paint();},zoom(f,x,y){view=zoomAt(view,f,x,y);paint();},reset(){view=defaultView();azimuth=-38;elevation=28;labelLayout.reset();paint();}});
 $('side-action').onclick=()=>{if(selectedSide)command({type:'toggle-wall',side:selectedSide,source:{kind:'direct'}});};
-$('fit-view').onclick=async()=>{if(!validReport)return;frame=await controller.frame(validReport.spec,'actuation');view=defaultView();azimuth=-38;elevation=28;labelLayout.reset();paint();};
+$('fit-view').onclick=async()=>{if(!validReport||(guideSession&&!fabrication.state.guide))return;frame=guideSession?frameFromPoints(fabrication.state.guide.framePointsMm):await controller.frame(validReport.spec,'actuation');view=defaultView();azimuth=guideSession?-18:-38;elevation=guideSession?55:28;labelLayout.reset();paint();};
+$('fabrication-toggle').onclick=toggleFabrication;
+$('guide-prev').onclick=()=>fabrication.step(-1);
+$('guide-next').onclick=()=>fabrication.step(1);
+$('fabrication-guide').addEventListener('keydown',e=>{if(e.target.closest('summary'))return;if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();fabrication.step(e.key==='ArrowRight'?1:-1);}else if(e.key==='Escape')fabrication.close();});
 $('progress').oninput=()=>{stop();progress=+$('progress').value/100;draw();};
 $('play').onclick=()=>{
  if(playing){stop();return;}if(report?.status!=='resolved'||!bundle)return;
