@@ -47,11 +47,11 @@ export interface FabricationPose {
  film:Panel3D[];inlet:{pointMm:Vec3;active:boolean;installed:boolean;markerVisible:boolean};sealedIds:string[];
  meshes:SceneMesh[];details:SceneDetail[];
  action:null|{kind:'press-seal';phase:'approach'|'press'|'release';pressFraction:number;bondFraction:number;schematic:true};
- activeSeal:null|{id:string;pairedLinesMm:[Vec3,Vec3][];status:'coincident-ideal-guides'};
- evidence:{panelModel:string;filmModel:string;finiteThickness:string};
+ activeSeal:null|{id:string;pairedLinesMm:[Vec3,Vec3][];status:'coincident-ideal-guides'|'coincident-local-margins'|'approaching-local-margins'|'unverified-end-film'};
+ evidence:{panelModel:string;filmModel:string;finiteThickness:string;endFilmIsometry?:'unverified'};
 }
 export interface FabricationValidation {
- schema:'origami-box/fabrication-validation/1';samplesPerStage:number;numericalPass:boolean;
+ schema:'origami-box/fabrication-validation/1';samplesPerStage:number;numericalPass:boolean;summary?:string;
   validationScope:'sampled-rigid-panel-geometry';manufacturingReady:false;
   guideAvailable:boolean;sealLayerAccess:'unverified';
  maxDistanceErrorMm:number;maxAreaErrorMm2:number;maxHingeErrorMm:number;
