@@ -19,7 +19,7 @@ export function createFabricationFeature({document,call,getDesign,prepare,acquir
   if(state.guide){
    if(!lease.viewer)lease.viewer=viewport.enterMode({renderer:fabricationSVG,framePointsMm:state.guide.framePointsMm});
    const stage=state.guide.stages[state.index];$('guide-title').textContent=`${state.index+1} / ${state.guide.stages.length} · ${stage.title}`;$('guide-instruction').textContent=state.error??stage.instruction;
-   const v=state.validation;if(v)$('guide-checks').textContent=`Rigid distance error ${v.maxDistanceErrorMm.toExponential(2)} mm · hinge / closure error ${Math.max(v.maxHingeErrorMm,v.maxClosureErrorMm).toExponential(2)} mm · matched seal guides ${v.maxSealMismatchMm.toExponential(2)} mm. Ideal mid-surfaces; film pleats and thickness need physical validation. Tool and inlet geometry are illustrative. Back steps rewind the explanation.`;
+   const v=state.validation;if(v)$('guide-checks').textContent=v.summary??`Rigid distance error ${v.maxDistanceErrorMm.toExponential(2)} mm · hinge / closure error ${Math.max(v.maxHingeErrorMm,v.maxClosureErrorMm).toExponential(2)} mm · matched seal guides ${v.maxSealMismatchMm.toExponential(2)} mm. Ideal mid-surfaces; film pleats and thickness need physical validation. Tool and inlet geometry are illustrative. Back steps rewind the explanation.`;
    if(state.pose)lease.viewer.show(state.pose);
   }
  }

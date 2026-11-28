@@ -8,11 +8,12 @@ function shade(color,points){
  return '#'+color.slice(1).match(/../g).map(x=>Math.round(parseInt(x,16)*factor).toString(16).padStart(2,'0')).join('');
 }
 export function meshSceneSVG({panels=[],meshes=[],film=[]},camera,view){
- const polygons=[...film.map(p=>({...p,role:'film'})),...panels.map(p=>({...p,role:'panel'})),...meshes.flatMap(mesh=>mesh.faces.map((face,i)=>({id:mesh.id,face:i,role:mesh.role,pointsMm:face.map(index=>mesh.verticesMm[index])})))];
+ const supplied=new Set(meshes.filter(m=>m.role==='panel').map(m=>m.panelId??m.id));
+ const polygons=[...film.map(p=>({...p,role:'film'})),...panels.filter(p=>!supplied.has(p.id)).map(p=>({...p,role:'panel'})),...meshes.flatMap(mesh=>mesh.faces.map((face,i)=>({id:mesh.panelId??mesh.id,face:i,role:mesh.role,solid:mesh.role==='panel',pointsMm:face.map(index=>mesh.verticesMm[index])})))];
  const faces=polygons.map(p=>({...p,points:p.pointsMm.map(v=>viewPoint(camera.project(v),view))}));
  faces.sort((a,b)=>a.points.reduce((s,p)=>s+p[2],0)/a.points.length-b.points.reduce((s,p)=>s+p[2],0)/b.points.length);
  return `<svg viewBox="0 0 720 330" xmlns="http://www.w3.org/2000/svg">${faces.map(p=>{
   const film=p.role==='film',panel=p.role==='panel',base=palette[p.role]??(panel?panelStyle(p.id).color:'#a9b5ac');
-  return `<polygon data-scene-role="${p.role}" data-entity="${p.id}" points="${p.points.map(q=>q.slice(0,2).join(',')).join(' ')}" fill="${film||panel?base:shade(base,p.pointsMm)}" fill-opacity="${film ? .22 : panel ? .9 : 1}" stroke="${film?'#9ab9be':panel?'#476661':'#44565e'}" stroke-opacity="${film ? .7 : p.role==='accessory' ? .25 : 1}" stroke-width="${panel ? 1.2 : film ? .65 : .35}" stroke-linejoin="round"/>`;
+  return `<polygon data-scene-role="${p.role}" data-entity="${p.id}" points="${p.points.map(q=>q.slice(0,2).join(',')).join(' ')}" fill="${film||panel&&!p.solid?base:shade(base,p.pointsMm)}" fill-opacity="${film ? .22 : panel&&!p.solid ? .9 : 1}" stroke="${film?'#9ab9be':panel?'#476661':'#44565e'}" stroke-opacity="${film ? .7 : p.role==='accessory' ? .25 : 1}" stroke-width="${panel ? 1.2 : film ? .65 : .35}" stroke-linejoin="round"/>`;
  }).join('')}</svg>`;
 }
