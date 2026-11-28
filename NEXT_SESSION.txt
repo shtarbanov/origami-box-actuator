@@ -1,0 +1,266 @@
+ORIGAMI BOX DESIGNER — NEXT SESSION HANDOFF
+Updated: 2026-11-28 (Asia/Seoul)
+
+1. AUTHORITATIVE CODE / GIT
+Repository folder:
+C:\Users\adban\Documents\Codex\2026-10-24\https-www-softrobotics-io-post-muscles\origami-box-actuator
+Application code: designer/ inside THAT repository.
+Branch: feat/box-designer-separated
+Remote: https://github.com/shtarbanov/origami-box-actuator.git
+Draft PR: https://github.com/shtarbanov/origami-box-actuator/pull/3
+Do not continue editing the sibling designer-lab directory. That is the older untracked prototype, not the committed application.
+Do not replace the original root index.html or CNAME without an explicit deployment decision.
+GitHub identity verified as JongHwan0604. Never use the Google admin/SNU Formula account. Credentials must not be printed or stored in source.
+
+Committed implementation before this handoff:
+d6022fb — KERNEL: pure geometry, panels, stencils.
+c21d7ab — API: transport, intent interpretation, constraints.
+058cbf0 — GUI: blocks, picking, display controls, gesture transactions.
+794bad0 — TEST: regression suites.
+8152d5d — CI/DOCS: GitHub Actions and editable-code/static-hosting instructions.
+50c35c3 — TEST FIX: include adapters/legacy-sheet.mjs required by legacy regressions.
+The handoff itself is a later docs-only commit; inspect git log rather than assuming HEAD equals 50c35c3.
+
+2. RUN / HOSTING
+Committed-code preview: http://127.0.0.1:4180/designer/
+It was served from the repository root with:
+  python -m http.server 4180 --bind 127.0.0.1
+The process may need restarting in a new session.
+Alternative from designer/: npm start (port 4173).
+WARNING: an older designer-lab server may still occupy port 4173. Do not confuse that prototype with committed code. Prefer the 4180 /designer/ route.
+No backend or npm dependencies are needed for the app. Use HTTP(S), not file://, because of ES modules/Worker.
+Actual GitHub Pages configuration was read: main branch, / root, https://origami.softrobotics.io/ .
+This development branch is NOT deployed. After review/merge into main, the isolated preview can be served at https://origami.softrobotics.io/designer/ . Do not describe that URL as live yet.
+
+3. IMPLEMENTED / VERIFIED
+- One parameterized box; no hinge/tilt/type selector. Semantic description blocks modify the same design.
+- Kernel, intent/constraints, versioned API, Worker and UI are separate modules.
+- Rectangular/trapezoid outlines, front/rear tilt, lateral tilt, direct side connections; dependencies and conflict sources.
+- Basic condition removal restores its neutral effect. Tilt removal restores zero longitudinal tilt; outline removal restores equal widths; lateral removal clears extra lateral bias. Other explicit constraints/locks remain; topology can impose dependent geometry and is reported.
+- Model/block bidirectional selection and a compact parameter editor below the model. Selecting an unconditioned feature creates a view-only descriptive card; only editing creates an actual constraint.
+- Four rise handles at the physical top-edge midpoints. Dimensions labelled Front max. rise / Rear max. rise remain maximum hinge-axis heights. Lateral ratio is defined at front hinge-axis corners. Keep these distinct; naming/API remains a review topic with Ali.
+- Left-drag pan, right-drag orbit, wheel zoom, touch gesture bindings, orthographic scale, underside views. No ground shadow.
+- Display menu at 3D upper-right: Directions, Dimension labels, Highlights, Height guides, Handles. Browser-local preferences, not design data.
+- Stable label offsets during orbit and requestAnimationFrame rendering. Reset label layout explicitly recomputes placement. Fixed offsets can overlap from some views; this tradeoff may be improved later without reintroducing label jumping.
+- IMPORTANT BUG FIX: rejected drag drafts used to contaminate the next drag while displaying an older valid mesh. Each drag now starts from the displayed resolved design and rejected samples do not replace it. Undo/Redo and subsequent widening were tested.
+- Paper fit is separate from geometric validity. An oversized stencil does not prohibit changing dimensions, but printing/export on the undersized sheet is blocked to avoid clipping.
+
+Validation in the transferred repository:
+  cd designer
+  npm test
+62 Node test cases AND all standalone legacy regression groups passed.
+GitHub Actions passed on implementation head 50c35c3 (push and PR workflows).
+Static /designer/ path was tested in a real browser: six panel faces, stencil, Worker, print enabled, no console errors.
+Physical touchscreen, airtight film, pressure/load behavior and continuous collision certification are NOT established.
+Regression log outside repo: ../outputs/Committed_Designer_Tests.log
+
+4. ISSUES / COMMENTS ALREADY POSTED
+Issue #1 (mouse zoom/pan/orbit):
+https://github.com/shtarbanov/origami-box-actuator/issues/1#issuecomment-7063480485
+Issue #2 (intuitive parameters):
+https://github.com/shtarbanov/origami-box-actuator/issues/2#issuecomment-7063480808
+Both reference PR #3, distinguish local implementation from deployment, and remain OPEN. Do not repost duplicates or auto-close before review.
+Issue #2 proposes basic length/width/deployed height + fabrication dimensions, with height-reference semantics to agree before freezing the API.
+
+5. IMPLEMENTED — STEP-BY-STEP FABRICATION GUIDE
+The committed designer now has a compact Fabrication guide button below the viewer.
+It starts from the flat stencil. < / > advance and reverse ONE actual manufacturing operation:
+layout -> half-fold about E-J -> longitudinal seal -> inlet -> open pouch into box -> inward side folds and flatten -> front seal -> rear seal.
+Seal stages highlight paired coincident ideal guide lines and show Seal here.
+Normal Play/Fold remains a separate actuation preview. Exiting restores the exact previous viewer, camera and actuation state.
+Guide mode temporarily makes design editing inert; orbit/pan/zoom still work.
+
+Architecture:
+- kernel/fabrication-guide.mjs owns stage ordering/instructions, rigid panel maps, film allowance guides, seal pairs, inlet and fixed viewing envelope.
+- API methods fabrication.describe, fabrication.pose, fabrication.validate carry JSON through the existing Worker.
+- ui/fabrication-player.mjs owns only navigation/timing and cancellation. Every intermediate pose comes from the API, with no vertex interpolation in the UI.
+- ui/fabrication-render.mjs draws returned semantic cues, with no fold equations or hardcoded stage sequence.
+- ui/block-app.mjs only connects those modules to the editor and restores state on exit.
+- docs/fabrication-guide.md records the geometric construction and limitations.
+
+Geometric construction (ordinary rectangular, two-wall, equal-rise box only):
+Half folding leaves the top translated by -2l in x relative to bottom; it is NOT the old collapsed actuation pose.
+After longitudinal sealing, translate the top by d=(-2l*cos(theta),0,2l*sin(theta)), theta 0..pi/2, with side midhinges at d/2 relative to corresponding bottom corners.
+This opens a closed parallelogram with straight two-panel walls into the upright box without changing any panel metric or opening the first seam.
+Then use the inward branch from opening=1 down to 0. At the flattened endpoint, paired top/bottom end sealing lines actually coincide at y=-(l+c) and y=L+l+c.
+The two end seals are performed at this flattened configuration, not with separated lines on an open box.
+Other geometries explicitly return unsupported diagnostics. Do not invent their manufacturing paths.
+Old assembly() and design.pose assembly are retained as legacy synchronous interpolation, not used by this guide.
+
+Evidence:
+- 72 Node tests passed, plus every standalone legacy regression group.
+- Four rectangular dimension/gap/thickness sets checked at 151 samples per stage for vertex distances, areas, hinge endpoints, closed seam, sealing endpoints and transition continuity; no interior zero-thickness crossings found.
+- Default 51-sample errors were about 1.8e-14 mm (distance), 1.4e-12 mm^2 (area), 1.2e-14 mm (seam), 1.2e-14 mm (transition).
+- Real browser: all 8 stages advanced, last Next disabled, all 7 reversals returned byte-identical starting SVG, exit returned byte-identical original preview.
+- Test log: ../outputs/Fabrication_Guide_Tests.log (outside repository).
+
+Limits:
+All paths use ideal zero-thickness mid-surfaces. Flat stacking is deliberate; positive-thickness offsets/compliant hinges are not solved.
+Translucent top/bottom film allowance strips are schematic. Complete membrane/gusset folding, inlet hardware, airtight seal widths and inflation after end sealing are not simulated.
+Matched ideal guide endpoints are verified; do not call this a finite-thickness manufacturing certificate.
+
+6. NEW — WINDOWS DOUBLE-CLICK LAUNCHER
+Ali found terminal-based opening too complicated. Double-click Open Designer.cmd in the repository root.
+It calls designer/tools/open-designer.ps1, starts a hidden loopback server and opens the default browser automatically.
+Node.js OR Python must already be installed once; there is no npm install or package dependency.
+It scans 4180..4199, reuses only a server whose identity endpoint points to this checkout, and skips other occupied ports.
+The earlier Python preview still occupies 4180. The new launcher currently opens http://127.0.0.1:4181/designer/ . Do not hardcode that port in instructions; the launcher prints/opens its selected URL.
+Running the launcher twice with -NoBrowser returned the same URL and reused one matching Node server.
+server.mjs now supports --repository and --port while preserving npm start's 4173/root behavior.
+local_server.py is the standard-library Python fallback. Node and Python serving/module MIME paths were smoke-tested.
+PowerShell test without opening another tab:
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File designer/tools/open-designer.ps1 -NoBrowser
+This environment currently has node but not npm in PATH; node tests/run.mjs from designer/ runs the exact package test script.
+
+7. NEXT WORK / DO NOT OVERCLAIM
+- Get user/Ali feedback on fabrication guide clarity and the ordinary-box path before generalizing to tilted/tapered/direct-hinge designs.
+- Full film end gussets and finite-thickness stack offsets remain separate kernel work.
+- Physical touch screen and actual manufacturing still need physical validation.
+- Production Pages/root index/CNAME were not changed. Keep this work on feat/box-designer-separated / PR #3 until review/merge.
+- Keep kernel/API/UI commits separate. Do not work in designer-lab.
+
+8. LATEST CONTINUATION — GUI FEATURE BOUNDARIES / SCHEMATIC HARDWARE
+The large UI entry has been replaced by a small composition root (ui/block-app.mjs).
+Feature implementations do not import one another; they receive explicit ports/callbacks.
+- ui/design-session.mjs: DOM-free API transactions, revision gates, history, storage and edit leases.
+- ui/parameter-feature.mjs: forms/blocks, selection, input debounce/focus. Pending input can flush before mode changes.
+- ui/viewport-feature.mjs: camera, display preferences, stable labels, picking/dragging and generic renderer-mode leases.
+- ui/actuation-feature.mjs: normal Play/Fold, API sampling, suspension and settling in-flight renders.
+- ui/fabrication-feature.mjs: guide DOM/player lifecycle; acquires/releases edit and viewport leases.
+- ui/project-feature.mjs: file open/save, history buttons, paper/templates, export/print and feedback.
+- ui/fabrication-feature.css: styles owned by the guide, separate from general editor styling.
+See designer/docs/gui-features.md for responsibilities and extension contracts.
+
+Kernel changes:
+- kernel/fabrication-visuals.mjs returns neutral vertex/face meshes for a two-jaw sealer, growing bond and hollow stepped inlet.
+- The inlet has a wide low cylindrical flange, narrower cylindrical neck and through-bore; it descends onto the marked film location and stays attached afterward.
+- Sealing stages approach, press and release jaws, growing a bond strip during the press. No Seal here caption remains.
+- Stage transition durations, tool trajectories, accessory shapes and detail-view envelopes come from the kernel.
+- UI mesh-scene.mjs only projects/depth-sorts/shades arbitrary meshes. fabrication-render.mjs draws cues and generic detail cards. Player contains no stage-name or operation-name cases.
+- Returned stage transition metadata is copied to avoid mutating kernel constants through API results.
+- Hardware proportions and animation times are SCHEMATIC, not actual hardware dimensions or sealer settings.
+
+Support remains rectangular, equal-rise boxes with both folding walls. No generalized fabrication paths were added in this refactor.
+A new path within the current scene contract should only require kernel/API result changes, not unrelated GUI feature edits. A completely new interaction/primitive would extend its own corresponding port/renderer.
+
+Verification:
+- 80 Node test cases and all standalone legacy groups passed; log ../outputs/GUI_Features_Tests.log.
+- Tests cover headless session history/save/load/queued edits/locks/rejections/failed imports, debounced input flush, no cross-feature imports, an unfamiliar kernel guide stage/operation, sealer press/release/bond and rigid hollow inlet attachment.
+- Real browser: number width edit and Undo, Front width 3D drag from 60 to 83, model-edge selection, Play/Pause and normal Fold, all 8 guide steps and all 7 reversals.
+- At 99% opening, opening/reversing/exiting the guide returns a byte-identical normal SVG, including label offsets. A resize-triggered label reset was removed; explicit Display/Fit re-layout remains.
+- No browser console errors in the tested flow.
+- Screenshots outside repo: ../outputs/GUI_Sealing_Press.jpg and ../outputs/GUI_Inlet_Attachment.jpg.
+Keep kernel/API/GUI/test/docs changes distinguishable in commits on the existing branch and PR. Production root site is unchanged.
+
+9. SUPERSEDED MANUFACTURING CLAIM — READ SECTION 10 FIRST
+The following work proved rigid endpoint closure, NOT a valid generalized manufacturing route. The route has been withdrawn; see section 10. Inlet refinements remain valid.
+A literal E-J-only half fold of the old taper net misaligns the first seam; finished 3D feasibility does not imply this particular net-fold choice works.
+Example Wfront/rear=80/64, L=75, max rises30/30: endpoint shift6.3639 mm, normal separation0.675 mm. These are different quantities; do not describe 6.36 as the gap between parallel lines.
+
+New kernel path (9 stages, existing GUI unmodified):
+layout -> rotate faces2..5 by pi about K-L (first side-pair middle crease) -> rotate face5 by pi about transformed M-N (second pair middle crease) -> long seal -> inlet -> outward-branch opening -> inward branch and flatten -> front seal -> rear seal.
+The two prefolds alone align both seam endpoints and stack congruent top/bottom. Do NOT add the original E-J half fold afterward.
+The outward branch reflects each middle hinge across the plane containing that side's two outer hinge lines. Both facets stay rigid; outer axes stay fixed. At opening1 it meets the inward branch at straight-wall tangency. Reuse the same map at the endpoint to avoid square-root roundoff.
+Existing rectangular 8-stage route is preserved. Direct-side hinge variants remain unsupported, as requested.
+New pure module: designer/kernel/fabrication-motion.mjs. All stage order, poses and cues remain in the kernel. No GUI feature was modified for the extra stage or shape support.
+
+Validation improvements:
+- Check ALL virtual panel vertex-pair distances too, plus rigid-map reconstruction of every hinge vertex. Physical outline rigidity alone cannot catch a solver supplying a distorted fourth corner.
+- Coplanar panel stacking is counted separately; it is expected during the second prefold. Noncoplanar crossings are still failures.
+- Public validation adds maxPanelMapErrorMm and flatStackContactSamples.
+- 84 Node cases + all legacy regression groups passed: ../outputs/General_Fabrication_Tests.log.
+- 50 valid parameter-grid cases, 101 samples/stage: max distance7.11e-13 mm, closure2.35e-12 mm, transition2.59e-12 mm, rigid-map error8.97e-13 mm; zero noncoplanar crossings. 10 incompatible zero-rise/lateral-tilt inputs were rejected by existing constraints.
+- Representative taper example also checked at401 samples/stage.
+- Real browser taper W80/64,L75,h30: all9 stages forward and8 reversals; returned byte-identical starting SVG. No console errors.
+
+Inlet / labels requested in the same work:
+- Removed 'schematic' from visible Heat sealing and Inlet detail titles; retained internal model limitations/data metadata.
+- Inlet overall scale70% of previous, flange radius additionally82%; narrower flange/neck ratio.
+- Outer neck opening rim has an explicit chamfer ring; through-bore retained. Mesh is a closed genus-one surface, tested by edge incidence / Euler characteristic.
+- Bore axis follows the moving inlet during attachment.
+
+Artifacts outside repo:
+../outputs/Side_Prefold_Closure.png and .svg: three-view diagram from actual kernel poses.
+../outputs/Side_Prefold_Verification.json: example spec, poses and401-sample audit.
+../outputs/General_Fabrication_Verification.json: 50-case report with rejected-domain inputs.
+../outputs/General_Guide_Prefold.jpg: 3D guide at aligned-seam stage.
+../outputs/GUI_Inlet_Smaller_Bevel.jpg: reduced/chamfered inlet.
+Physical panel thickness, compliant film/gussets and actual sealing performance are still unverified; zero-thickness stacking is intentional.
+
+10. CURRENT — WITHDRAWN ROUTE / FILM-LAYER AND SEAL-ACCESS STUDY
+User correctly rejected the generalized route: small panels must close downward, and a sealer cannot weld an internal line through other film layers. They allow margin and heater width to be variables; seal before trimming excess film.
+Public fabricationGuide now returns unsupported / SEAL_LAYER_ACCESS_UNVERIFIED for nonrectangular designs, and fabricationPose rejects them. Original rectangular 8-stage route remains unchanged. A cached open tab needs reloading to receive this correction.
+fabrication.validate explicitly labels its numerical results as sampled-rigid-panel-geometry, manufacturingReady=false, sealLayerAccess=unverified, and guideAvailable=false for withdrawn routes. A numerical pass is not manufacturing evidence.
+New pure research module: designer/kernel/film-seal-study.mjs. Not exposed by public API or GUI.
+Candidate: first side pair up; first free film margin down; far margin pre-folded up; second small-panel pair down; the two margins meet as an external fin below the body. Seal the fin, THEN trim. Margin timing matters; do not extract buried layers after closure.
+The full source blank is rectangular; all material is retained and tracked in UV coordinates, split only at film creases. Independent rigid panels stay attached to UV coordinates. Reject creases crossing panels, film crossings, stack-order violations, extra heated layers, incomplete heated-band coverage, wrong material normals, or margins straddling the second fold. Coplanar overlaps count in thermal-layer audits, even though kinematic stacking is allowed.
+Explicit research variables: marginMm, heatWidthMm, setbackMm; samples optional. Example values 8/1/2 mm are NOT physical hardware defaults.
+Reproduce: node designer/tools/study-external-fin.mjs
+Outputs ignored by git: designer/verification/external-fin/report.json and external-fin.svg. Tracked illustration: designer/docs/figures/external-fin.svg.
+Example taper W80/64,L75,rise30: local checks pass at201 samples/fold. A27-case width/pitch/lateral grid passes at101 samples/fold. Upward second fold produces film intersections. Delaying margin preparation until after closure produces stack-order violations. Zero-rear-rise example is rejected because extra blank film straddles a fold.
+ALL local study results are manufacturingReady=false. End-seal junctions, full jaw housing/finite thickness, post-seal film unfolding, airtightness and pneumatic actuation are not validated. Do not enable the generalized public guide on the strength of this local result alone.
+Important mechanical consequence: setback s leaves two unbonded root-to-weld paths of length s, allowing corresponding seam roots to separate by up to 2s (triangle inequality, not a motion prediction). The fin weld does NOT enforce the ideal B-C root coincidence. Account for this extra freedom before claiming the old actuation path applies.
+Verification for this correction: 90 Node tests plus all standalone legacy regression groups passed. Six new film-seal tests include opposing normals, rigid-panel attachment, wrong direction, late extraction, thermal extra layers, variable margins and withdrawn public API behavior. No GUI feature was changed; existing cached tabs require reload.
+Prior Side_Prefold_Closure illustration and General_Fabrication reports certify rigid geometry only and are superseded as manufacturing evidence. Do not use them to instruct sealing.
+See designer/docs/fabrication-guide.md and tests/film-seal-study.test.mjs. All changes remain kernel/API/tests/docs; the GUI contains no shape-specific workaround.
+
+11. HISTORICAL THIN-SHEET STUDY — DIRECTIONS SUPERSEDED BY SECTION 12
+User clarified: close the < small-panel pair onto itself, swing that doubled wall to one side, THEN overlap the entire strip. They requested rigid-panel, seam and exterior two-layer checks with step-by-step visualization. They also want a future direct-fold editor where declared hinge lines and directions can be chosen.
+Implemented a research program using A=M-N (right wall middle), B=F-G (top/right wall root), then C=K-L (opposite wall middle). Default signed angles +pi,-pi,+pi: last small panel up, doubled pair down/inward while its loose free margin travels up, remaining strip up at C. This keeps the full rectangular film blank; no external-fin margin folds or pre-cut tabs.
+Important axis distinction: using the former central E-J line as the last fold leaves 30 mm seam mismatch in the W80/64,L75,rise30 example. Do not silently equate the two whole-fold axes.
+The correct order passes local first-seal checks in the example at201 samples/fold and a27-case width/pitch/lateral grid at151 samples/fold. Worst rigid distance error1.85e-13 mm, film continuity2.12e-13 mm, seam1.12e-12 mm. Two intended opposing film layers cover the whole outward heated strip, no extra partial layers or rigid panels, normal approach clear in ideal planar stack.
+Critical heater placement: the matched dashed guide is the INNER EDGE of the outward heated band. Putting the band on the body side heats FOUR body-film layers here. Centering it on the dashed guide also touches unwanted layers. Report and viewer explicitly show this condition. Example blank expansion8mm, heat width1mm, outward offset0 are study values, not hardware defaults.
+Wrong swing direction has the same final rigid pose/seam but violates film stack departure. The zero-rear-rise example keeps panels rigid and seam closed but the prescribed extra-film crease pattern tears shared material boundaries by10.18mm. Reject that program, not the whole actuator; further end-film creases may help.
+New neutral kernel: surface-contacts.mjs (extracted unchanged convex contacts; old validate/motion exports preserved); sheet-folds.mjs (JSON program, material selection, exact rigid samples, film continuity/attachment/hinge audits, sampled contacts and flat-stack departure). It imports no box solver/UI. Box adapter wall-tuck-study.mjs owns axes/order/angles/instructions/timing/cues/heat/staged frames. UI sheet-study-document.mjs only plays supplied frames and projects them, with no vertex interpolation or solver.
+Reproduce: node designer/tools/study-wall-tuck.mjs
+Open generated designer/verification/wall-tuck/viewer.html directly in any browser; offline/self-contained. It has < > stage navigation, fold-angle scrubber, left-pan/right-orbit/wheel zoom and touch. Existing main app GUI and public fabrication support are unchanged. New program is NOT enabled as a complete generalized guide.
+Output copies outside repo: ../outputs/Wall_Tuck_Fold_Sequence.png and ../outputs/Wall_Tuck_Folding_Viewer.html. Detailed report/frames generated under designer/verification/wall-tuck (ignored). Tracked figure: designer/docs/figures/wall-tuck.svg. Read designer/docs/wall-tuck-study.md.
+Future direct-fold UI can submit declared hinge + signed angle to the independent kernel. Current viewer inspects a prescribed route; arbitrary hinge selection is not yet implemented. Layer-order audit coverage is currently horizontal flat starting stacks; nonflat starts report incomplete coverage. End seals, finite thickness/housing and pneumatic behavior remain unverified, manufacturingReady=false.
+Verification: 101 Node test cases plus every standalone legacy regression group passed. New tests exercise the neutral two-panel engine, rigid/film/hinge invariants, wrong final axis, wrong layer extraction, outward-versus-inward heater placement, failed apex continuity, exact rewind/JSON transport, generic playback/scrubbing and rapid-click guards. Portable viewer script passed node --check and was served successfully at the matching local checkout. It was requested in a Codex browser panel; live browser interaction was not automated in this session.
+Additional inline motion artifact: ../outputs/Wall_Tuck_Folding.gif (65 kernel-derived frames; camera scale/target fixed). The HTML is the controllable version. The nine-panel figure recenters each view at a shared orthographic scale; it does not resize individual models.
+
+12. CURRENT — USER-CORRECTED DIRECTIONS / FINITE PLASTIC / OTHER WALL INWARD
+User correction: first fold DOWN, second UP, third unchanged/UP. Default foldSigns is now [-1,+1,+1]. After the long seal, the opposite wall used in the large fold must go inward before end sealing. Never revert these directions to the old thin-sheet demonstration.
+New kernel thick-folds.mjs represents plastic as true one-sided closed prisms with the specified thickness (example .30mm) on the +normal side of the initial film. Naively extruding the old coincident faces detects top/right-lower intersection. Clearance is accommodated by length-preserving flexible hinge strips, with bend radius searched under radius*angle<=gap. Whole child groups rotate/translate rigidly; the UI does not explode or shift layers. Sampled prism checks include endpoint refinements. Insufficient gap/thickness reports failure.
+New wall-tuck-thickness.mjs continues from that finite stack through sealed-pouch opening (opposite wall outward, prepared wall inward), the straight-wall branch join, and flattening with BOTH walls inward. The bottom stays fixed. Small rigid translations solve physical gap chord<=available film width and zero axial slip; panel rotations/shapes remain fixed to their rigid maps. Local two-facet flexible strips can connect those parallel edges without stretching. This is not a complete loose-film membrane solve.
+Local free seam overhangs each preserve length gap/2 and meet at a common reference throughout opening/tucking. The first heat footprint sits outward of the modeled solid/hinge envelope. Example requires computed ~.00591mm outward offset; not a hardware default. Extra unbonded film leaves freedom; this path is not a unique pressure prediction.
+Sequence now: flat -> A down -> B up -> C up -> long seam -> open pouch -> opposite wall IN -> front end-seal reference -> rear reference. End-film/gusset motion, full flexible-strip interactions, real film thickness/minimum bend radius, heater body and pneumatic behavior remain unverified. Last two stages explicitly say reference only. manufacturingReady=false. Keep public generalized fabrication guide withdrawn.
+Example .3mm plastic/gap4: prefold accommodation radii ~0, .30001, .63662mm (computed, not measured). Five shape examples (rectangle,taper,pitch,combined,lateral) pass finite-panel/post-seal gap tests. First stack bottom/right-lower/right-upper/top; after opposite tuck the left section is bottom/left-lower/left-upper/top. Actual uniform-scale sections are generated from solid coordinates.
+Compatibility CLI node designer/tools/study-wall-tuck.mjs now imports study-wall-tuck-thickness.mjs and regenerates the current viewer/report/frames/figures at designer/verification/wall-tuck. UI sheet-study-document.mjs now renders generic kernel-supplied solid meshes as opaque shaded volumes. No GUI fold/thickness calculation. Main editor/public fabrication API unchanged.
+Read designer/docs/finite-panel-folding.md. The former wall-tuck-study.md is marked historical, including its old direction prose. Current tracked figures: docs/figures/wall-tuck.svg and wall-tuck-stack-sections.svg. Output copies: ../outputs/Wall_Tuck_Folding_Viewer.html, Wall_Tuck_Fold_Sequence.png, Wall_Tuck_Thickness_Sections.png, and updated Wall_Tuck_Folding.gif.
+Verification: 107 Node tests and all standalone legacy groups passed. Six new finite-panel tests cover signed motion, closed solid volume, all 3D vertex-pair distances, detection of naive extrusion collisions, layer-section ordering, branch continuity, five finite shape paths, gap limits/axial slip, local seam length/closure/heater envelope and insufficient-gap rejection. Generated viewer script passed node --check; matching checkout serves it with HTTP200. Updated GIF has129 kernel-derived frames. A fresh Codex preview URL was requested with ?revision=finite-panels; browser interaction was not automated.
+
+13. CURRENT — END-FILM CONTACT / END SEALS / AIRWAY (2026-11-28)
+Latest user: model actual loose end film after both walls inward; check intended heated layers and air channel while keeping finite rigid plastic. User says inlet is small but DOES NOT KNOW diameter. Keep it null/symbolic.
+New pure kernel end-film.mjs: complete source-material atlas around both-inward collapsed skeleton, UV-preserving initial patches, shared overlay mesh, actual 2/4-layer end-band registry, extended-long-weld/blank coverage and unbonded-airway topology. end-film-closure.mjs: layer-preserving DEFORMABLE film press map. end-film-validation.mjs: independent roots/welds/crossings, whole-triangle projected injectivity/layer order, principal strains, exact centreline section/gap and segment-vs-finite-plastic airway checks. end-film-study.mjs owns complete supplied frames/order/instructions/tool meshes. UI contains no geometry solver.
+Reproduce: node designer/tools/study-end-film.mjs. New viewer designer/verification/end-film/viewer.html is self-contained and opens by double-clicking; copied output ../outputs/End_Film_Folding_Viewer.html. Overview ../outputs/End_Film_Sequence.png and detailed measured cross-sections ../outputs/End_Film_Sections.png. Report/frames generated under ignored verification/end-film. See designer/docs/end-film-folding.md.
+Research viewer stages: earlier corrected rigid skeleton (DOWN,UP,UP,long seam,open,other wall IN), then full end-film material view, front press, front heat, rear press, rear heat. Earlier complete loose-film motion is NOT modeled. Heat bars illustrate normal access; not calibrated hardware. Back/forward and panel visibility were exercised in a real browser. Film mesh triangle edges are hidden; no misleading wireframe stripes. Amber scope text denotes research status.
+Example W80/64,L75,rise30,t.3,g4; heat1,blank margin25,retained long fin2/end tail2 are explicit STUDY values, not measured defaults. End pressing checks21 frames/end; no detected crossings, no layer swaps, fixed roots/prior long weld, plastic unchanged. Film requires ~0.4053% max principal strain (2mm mesh; refinements1/.5mm give .3928/.3851%). ALLOWABLE FILM STRAIN UNKNOWN; zero film thickness. Strict inextensibility correctly fails. Earlier attempted inextensible SciPy relaxation self-crossed and was rejected; experimental Python archived only under ignored verification/rejected-inextensible. Runtime needs only Node/browser, no SciPy.
+Required seal band has 2 central skins / 4 intentional gusset layers. Existing long weld must continue through both future end bands: old blank margin8 fails; example geometric minimum9.66613mm, use25 study example. Old printed front guide span is short of complete folded width by4.0913mm at limiting end. Retained-fin trimming is explicit after long seal; do not remove junction material before welding.
+Airway: conservative unbonded UV corridor passes; extra internal cross-weld correctly blocks it. Rear inlet-to-root piecewise-linear centreline gap>=.64198mm; continuation avoids all finite plastic solids (negative aimed-into-panel test fails). Actual inlet diameter null; material-reference seal edge clearance9mm =>18mm band-exclusion bound ONLY, not recommended port size/hardware/flow certification.
+Other sampled end-film cases rectangle/taper/longitudinal tilt/lateral tilt pass. Combined taper+tilt BLOCKED by .0005143mm shared extended-hinge atlas discontinuity; not silently merged. NEED continuous deformable transition or new crease layout for that case. Do not call all designs manufacture-ready.
+manufacturingReady=false throughout. Continuous-time film collision, finite film thickness, real strain limits/hardware, full earlier membrane history, real airflow and airtightness NOT verified. Keep public generalized guide withdrawn and production root/CNAME unchanged.
+Validation: 113 Node tests and all7 standalone legacy groups passed. Six new end-film tests include deliberately penetrating/misprojected layers, wrong blank coverage, internal blocking weld, unknown inlet, rigid unchanged plastic, partial shape rejection and preserved front closure. Boundary tests preserve kernel/UI separation. No external issue comments posted in this turn.
+
+14. CURRENT — COMBINED TAPER/PITCH BLANK PLAN + MAIN GUI PANEL SOLIDS (2026-11-28)
+User asks resolve combined without ignoring material mismatch and show configured actual thickness in the main designer. Implemented two independent changes; production root/CNAME and generalized public guide support remain unchanged.
+Combined mismatch was in distant excess source film, where extended hinge strips intersect beyond needed welds. New end-film-blank.mjs plans actual material cuts before any folds, preserving original conflict coordinates/error and strict validation. withEndBlankPlan applies only source film bounds/retention, NEVER panel transforms/dimensions. Original raw margin25 combined still throws. W80/64, rises30/18: rectangular coverage minimum12.49378mm, local extension limit24.96034mm; planner selects19mm, retained boundary error~2.83e-13mm versus original .0005143mm. Added kernel-owned Trim distant waste while flat stage. These are study dimensions, not universal fabrication recommendations.
+For steeper combined profiles (rise ratio.4), no uniform rectangular crop in the checked family can preserve needed welds. Fallback computes a profiled flat cut contour from reference end-band limits + explicit2mm tail. Full long free margins are retained before the first long seal. UV outer boundary is checked to be one connected hole-free blank with conserved area and all panel attachments inside. End-film atlas then operates on the explicitly cut domain. No vertex mismatch averaging or relaxed threshold. Retaining only2mm of longitudinal fin remains a later, separate cut.
+Primary combined end path:61 frames/end, required max principal film strain~.68893%, no known allowable material strain. Rear inlet centreline gap>=.64408mm, plastic-free continuation; previous long weld remains joined, end2/4-layer registry and coverage checks pass. Pure geometry, zero film thickness, sampled time. Physical airtightness/flow/heater/finite-film and full earlier loose-membrane motion still unverified. manufacturingReady=false.
+Reproduce combined viewer: node designer/tools/study-end-film.mjs designer/verification/end-film-combined --combined. Full parameter sweep: node designer/tools/check-end-film-grid.mjs (width ratios .65/.8/.95 × rise ratios .4/.6/.85). Viewer is self-contained/double-clickable; copies ../outputs/Combined_End_Film_Viewer.html, Combined_Film_Blank_Plan.png, Combined_End_Film_Sections.png. Actual cut contour and original failure markers in generated blank-plan.svg/JSON. Existing taper viewer stays separate.
+Main designer now gets exact finite panel solids via additive Pose.meshes from kernel/panel-solid.mjs through design.pose/referencePoses and Worker. Existing Pose.panels/placements/mid-surfaces and templates unchanged. Main collision model was already SYMMETRIC prisms, so display matches +/-thickness/2; fabrication research intentionally uses one-sided film attachment. Do not conflate them or silently translate linkage panels. At zero thickness render one face. GUI only projects supplied facets, shades and preserves facet-to-panel picking/highlights; one keyboard target per panel. Camera fitting includes physical solid vertices, fixed scale while orbiting. Existing Panel thickness input updates geometry without adding clutter.
+Browsers: actual main GUI thickness edited .3→1.5→.3 and side faces visually checked. Combined viewer trim stage, full > navigation to rear seal and < reversal tested. No user project saved or external messages posted. Read designer/docs/end-film-folding.md and panel-thickness-display.md for scope and module conventions.
+Validation for section14: 117 Node tests plus all seven standalone legacy groups passed. Reproducible 3x3 combined sweep passed9/9, including sampled finite plastic paths, end-film continuity/contact/order, full weld coverage and plastic-free positive inlet centreline. Strong-pitch examples use profiled end cuts rather than throwing away long sealing margins. Source raw failure remains a negative test. See tools/check-end-film-grid.mjs.
+
+15. CURRENT — STRAIN IS NOT A STRUCTURAL MINIMUM / FOUR-PANEL HINGE GUIDE
+User explicitly asks whether .69% means actual film extension, whether structural or path-dependent, review nonstretching folds/wrinkles with rigid plates, and implement the absent-side triangular hinge guide. Do not claim the complete inextensible pouch problem is solved.
+Signed metric audit: combined rear maximum principal EXTENSION .0068892831 (0.68893%), COMPRESSION .0035377003 (0.35377%). Front extension .34773%, compression .32128%. These are local metrics of the selected smooth map, not projected area or a uniform whole-film strain. Previous wording required .69% was too strong. end-film-study now explicitly labels the map stretching/compressing and sets inextensibleFilmVerified=false, strainIsStructuralMinimum=false.
+Exact boundary calculation: fixed projected material span11.9mm plus vertical offset .636619766mm requires chord11.9170166mm, hence >=.142997% pairwise extension UNDER THAT FIXED-XY CONDITION. Releasing seal retreat allows an exact two-crease central-strip construction with retreat .01704097mm, rigid film patches and preserved lengths/area/continuity (distance error~3.55e-15mm). New film-strain-study.mjs and study-film-isometry.mjs generate local viewer/report/section diagram. This witness has FREE LATERAL BOUNDARIES; it does NOT attach all side gussets or the prior long fin. Whole-pouch nonstretching path remains unverified, not proved impossible.
+Five whole-cap numerical searches were rejected: free clampXY+fixed material correspondence; independent clamp layerXY; heated band only planar; extra lateral creases/small wave; axial wave. Maximum remaining edge errors .007336/.006526/.005574/.011301/.018360mm. Never render them as accepted folds. Optional kernel/inextensible_film_search.py + tools/search-inextensible-film.py use isolated ignored NumPy/SciPy, no browser dependency. Source problems and rejected results under ignored verification/end-film-combined. study-film-isometry.mjs independently re-audits available results. No numerical failure is a nonexistence proof. New overlay lateralGridMm optional.
+Primary literature read: Tachi Capping Rigid Origami Tubes, IASS2017 (https://origami.c.u-tokyo.ac.jp/~tachi/cg/TachiCapping2017IASS.pdf). Bellows theorem is not directly a proof for open-end fabrication, inlet-hole topology, changing/curved wrinkles. Current mesh does NOT explicitly cut the unknown bore or model actual flange attachment, so keep those boundary conditions unknown instead of inventing dimensions.
+Hinge: new hinge-fabrication-geometry.mjs and hinge-fabrication-guide.mjs supply four finite one-sided solids for either omitted side, rectangular or tapered, through half-fold UP -> direct long seam -> inlet -> open remaining pair straight -> tuck only wall IN -> front/rear end references. Gap fold reserves 4t stack clearance (exampleH1.20002mm for t.3/g4), not just initial two-layer clearance. Rigid panel paths, signed motion, gap reachability/axial slip and stage joins audited. End pleat motion explicitly UNVERIFIED, activeSeal.status=unverified-end-film; no fake end clamp animation. Main Fabrication guide now supports hinge via kernel API dispatch. Other generalized routes stay withdrawn. UI mesh renderer consumes solids without duplicate mid-surfaces; GUI checks use a kernel-provided summary, no family routing.
+Main browser test: removed left wall in a fresh draft, opened guide, advanced all8 stages, reversed to front reference, expanded accurate checks. Saved no project, sent no external messages. New live app tab remains in hinge guide; local-strip witness also opened with explicit scope. Static outputs ../outputs/Hinge_Fabrication_Viewer.html, Hinge_Fabrication_Sequence.png, Film_Isometry_Local_Witness.html and Film_Isometry_Explanation.png. Reproduce: node designer/tools/study-hinge-fabrication.mjs and node designer/tools/study-film-isometry.mjs.
+Read docs/film-inextensibility-review.md and docs/hinge-fabrication.md. Current Node suite121 tests and all seven legacy regression groups passed. Added physical solids for both mirrors, tapered hinge cases, all stage joins, actual wall tuck, generic reverse playback and exact local strip metrics. Complete inextensible end-film folding remains the critical unsolved work; do not re-enable every shape as fabrication-certified.
+Additional continuation: extended the search6mm into the body so actual plastic-attached UV regions are fixed while unbonded hinge strips can wrinkle. New optional end-film research parameters rootInsetMm/includeBondedBoundaries and lateralGridMm; overlay splits actual attachment boundaries, problem.bonded identifies attached vertices, validation reports maxBondedErrorMm/bondAttachmentPass. The first released-hinge sparse search still failed (max edge .020292mm after1200 evaluations); a dense follow-up is reported separately if available. Any deep-domain candidate also needs full film/prism contacts because axial separation no longer certifies clearance. This is an additional research constraint check, not a validated route. Full Node suite now122 passing.
+Final released-hinge dense follow-up also rejected: max edge error .0202384mm after120 evaluations. The report now distinguishes seven rejected candidates; no global inextensible path is verified. Local proof and signed strain results remain valid. Public hinge poses are JSON-stable including mirrored zero coordinates, have independent output arrays, and reject a cached finite path if its sampled clearance fails.
+Final verification:122 Node tests plus all seven legacy groups pass, including JSON equality of mirrored hinge poses. Browser main-app hinge guide was exercised through all8 stages, reversed, and checks expanded. No full end-film isometry certificate is claimed.

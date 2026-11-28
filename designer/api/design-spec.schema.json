@@ -1,0 +1,20 @@
+{
+ "$schema":"https://json-schema.org/draft/2020-12/schema",
+ "title":"Origami box design intent, experimental v1",
+ "description":"Schema checks structure only. Kernel feasibility and solver-domain checks are also required.",
+ "type":"object","additionalProperties":false,
+ "required":["schema","units","footprint","rise","walls","fabrication"],
+ "properties":{
+  "schema":{"const":"origami-box/spec/1"},"units":{"const":"mm"},
+  "footprint":{"type":"object","additionalProperties":false,"required":["length","frontWidth","rearWidthRatio"],"properties":{
+   "length":{"type":"number","exclusiveMinimum":0},"frontWidth":{"type":"number","exclusiveMinimum":0},"rearWidthRatio":{"type":"number","exclusiveMinimum":0}
+  }},
+  "rise":{"type":"object","additionalProperties":false,"required":["front","rearRatio"],"properties":{
+   "front":{"type":"number","exclusiveMinimum":0,"description":"Maximum front top hinge-axis edge z at full opening, not pressure, physical cut-edge height or mean edge height."},"rearRatio":{"type":"number","minimum":0}
+  }},
+  "walls":{"type":"object","additionalProperties":false,"required":["left","right"],"properties":{"left":{"type":"boolean"},"right":{"type":"boolean"}},"anyOf":[{"properties":{"left":{"const":true}}},{"properties":{"right":{"const":true}}}]},
+  "fabrication":{"type":"object","additionalProperties":false,"required":["hingeGap","panelThickness","endAllowance"],"properties":{
+   "hingeGap":{"type":"number","exclusiveMinimum":0},"panelThickness":{"type":"number","minimum":0},"endAllowance":{"type":"number","exclusiveMinimum":0}
+  }}
+ }
+}
