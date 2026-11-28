@@ -2,9 +2,13 @@
 // Every carrier/half-hinge/long-fin patch has an independent isometric map.
 import {add,sub,mul,dot,cross,unit,point,points,clipUV,area,inPolygon} from './sheet-folds.mjs';
 import {wallTuckClosedState,wallTuckGapAudit,wallTuckPhysicalPose} from './wall-tuck-thickness.mjs';
+import {hingeClosedState,hingeGapAudit} from './hinge-fabrication-geometry.mjs';
 import {heatedFilmLayers} from './film-seal-study.mjs';
 import {solidPanelMesh} from './thick-folds.mjs';
 const length=v=>Math.hypot(...v),distance=(a,b)=>length(sub(a,b));
+const closedState=(c,opening,inward)=>c.context.net.faces.length===4?hingeClosedState(c,opening,inward):wallTuckClosedState(c,opening,inward);
+const gapAudit=(c,state)=>c.context.net.faces.length===4?hingeGapAudit(c,state):wallTuckGapAudit(c,state);
+const longSealOffset=c=>c.context.net.faces.length===4?(c.context.options.sealOffsetMm??0):wallTuckPhysicalPose(c,{phase:'seal',progress:1}).heater.outwardOffsetMm;
 function frame(uv,xyz){
  const [a,b,c]=uv,u=sub(b,a),v=sub(c,a),d=u[0]*v[1]-u[1]*v[0],w=sub(xyz[1],xyz[0]),z=sub(xyz[2],xyz[0]);
  const x=mul(sub(mul(w,v[1]),mul(z,u[1])),1/d),y=mul(sub(mul(z,u[0]),mul(w,v[0])),1/d);
@@ -15,32 +19,32 @@ function elbow(item,target,g){
  return add(mid,mul(n,Math.sqrt(Math.max(0,g*g/4-dot(d,d)/4))));
 }
 function stripFrame(c,state,j,half){
- const h=c.context.program.hinges[j],uv=h.axisUvMm,du=sub(uv[1],uv[0]),v=mul(unit([-du[1],du[0]]),h.movingSide),a=c.context.net.p.gap/2,item=wallTuckGapAudit(c,state).items[j],parent=state.panels[j],target=point(parent,uv[0]),q=elbow(item,target,2*a),shift=sub(item.first[1],item.first[0]);
+ const h=c.context.program.hinges[j],uv=h.axisUvMm,du=sub(uv[1],uv[0]),v=mul(unit([-du[1],du[0]]),h.movingSide),a=c.context.net.p.gap/2,item=gapAudit(c,state).items[j],parent=state.panels[j],target=point(parent,uv[0]),q=elbow(item,target,2*a),shift=sub(item.first[1],item.first[0]);
  return half===0?frame([sub(uv[0],mul(v,a)),uv[0],sub(uv[1],mul(v,a))],[item.first[0],q,add(item.first[0],shift)]):frame([uv[0],add(uv[0],mul(v,a)),uv[1]],[q,item.second[0],add(q,shift)]);
 }
 function seamFrame(c,state,faceIndex,fin){
  const f=c.context.net.faces[faceIndex],uv=c.context.net.seam.map(id=>[-f.flat[id][0],f.flat[id][1]]),u=sub(uv[1],uv[0]),cent=mul(f.panel.map(p=>[-p[0],p[1]]).reduce(add,[0,0]),1/f.panel.length);let n=unit([-u[1],u[0]]);if(dot(n,sub(cent,uv[0]))>0)n=mul(n,-1);
- const g=c.context.net.p.gap,item=wallTuckGapAudit(c,state).items.at(-1),out=[...c.context.normal0,0],q=elbow(item,add(item.first[0],mul(out,g)),g),root=faceIndex===0?item.first[0]:item.second[0],shift=sub(item.first[1],item.first[0]);
+ const g=c.context.net.p.gap,item=gapAudit(c,state).items.at(-1),out=[...c.context.normal0,0],q=elbow(item,add(item.first[0],mul(out,g)),g),root=faceIndex===0?item.first[0]:item.second[0],shift=sub(item.first[1],item.first[0]);
  return {normal:n,uv,transform:fin?frame([uv[0],add(uv[0],n),uv[1]],[q,add(q,out),add(q,shift)]):frame([sub(uv[0],mul(n,g/2)),uv[0],sub(uv[1],mul(n,g/2))],[root,q,add(root,shift)])};
 }
 export function endFilmAtlas(c,{opening=0,retainedLongFinMm=2,referenceYRange=c.context.retainedReferenceYRange??null}={}){
- const state=wallTuckClosedState(c,opening,true),zero={...c,inwardOffsets:c.inwardOffsets.map(()=>[0,0,0])},flat=wallTuckClosedState(zero,0,true),bounds=c.context.bounds,g=c.context.net.p.gap;
+ const state=closedState(c,opening,true),zero={...c,inwardOffsets:c.inwardOffsets.map(()=>[0,0,0])},flat=closedState(zero,0,true),bounds=c.context.bounds,g=c.context.net.p.gap,last=c.context.net.faces.length-1;
  let remaining={id:'blank',uvMm:[[bounds.minX,bounds.minY],[bounds.maxX,bounds.minY],[bounds.maxX,bounds.maxY],[bounds.minX,bounds.maxY]]};const patches=[];
  const interval=(patch,a,n,lo,hi)=>{let p=patch;if(Number.isFinite(lo))p=clipUV(p,add(a,mul(n,lo)),n,1);if(p&&Number.isFinite(hi))p=clipUV(p,add(a,mul(n,hi)),n,-1);return p;};
  const push=(patch,id,role,finite,flat)=>{if(patch)patches.push({...patch,id,role,transform:finite,flatTransform:flat});};
- for(let j=0;j<5;j++){
+ for(let j=0;j<last;j++){
   const h=c.context.program.hinges[j],a=h.axisUvMm[0],d=sub(h.axisUvMm[1],a),n=mul(unit([-d[1],d[0]]),h.movingSide),body=interval(remaining,a,n,-Infinity,-g/2);
   push(body,'carrier-'+j,'carrier',state.panels[j].transform,flat.panels[j].transform);
   push(interval(remaining,a,n,-g/2,0),'hinge-'+j+'-0','hinge',stripFrame(c,state,j,0),stripFrame(c,flat,j,0));
   push(interval(remaining,a,n,0,g/2),'hinge-'+j+'-1','hinge',stripFrame(c,state,j,1),stripFrame(c,flat,j,1));
   remaining=interval(remaining,a,n,g/2,Infinity);
  }
- push(remaining,'carrier-5','carrier',state.panels[5].transform,flat.panels[5].transform);
- for(const i of [0,5]){
+ push(remaining,'carrier-'+last,'carrier',state.panels[last].transform,flat.panels[last].transform);
+ for(const i of [0,last]){
   const index=patches.findIndex(p=>p.id==='carrier-'+i),p=patches[index],s=seamFrame(c,state,i,false),z=seamFrame(c,flat,i,false),a=s.uv[0],n=s.normal;
   patches.splice(index,1);push(interval(p,a,n,-Infinity,-g/2),p.id,p.role,p.transform,p.flatTransform);
   push(interval(p,a,n,-g/2,0),'seam-overhang-'+i,'seam',s.transform,z.transform);
-  const sf=seamFrame(c,state,i,true),zf=seamFrame(c,flat,i,true),offset=wallTuckPhysicalPose(c,{phase:'seal',progress:1}).heater.outwardOffsetMm,b=c.context.options.heatWidthMm;
+  const sf=seamFrame(c,state,i,true),zf=seamFrame(c,flat,i,true),offset=longSealOffset(c),b=c.context.options.heatWidthMm;
   push(interval(p,a,n,0,offset),'long-fin-'+i+'-root','fin',sf.transform,zf.transform);
   push(interval(p,a,n,offset,Math.min(retainedLongFinMm,offset+b)),'long-fin-'+i+'-weld','fin-weld',sf.transform,zf.transform);
   if(retainedLongFinMm>offset+b)push(interval(p,a,n,offset+b,retainedLongFinMm),'long-fin-'+i+'-tip','fin',sf.transform,zf.transform);
@@ -52,10 +56,11 @@ export function endFilmAtlas(c,{opening=0,retainedLongFinMm=2,referenceYRange=c.
  return {schema:'origami-box/end-film-atlas/1',patches,state,opening,retainedLongFinMm,maxIsometryError,maxContinuityError,continuityConflicts};
 }
 function clipWorldY(patch,value,side){const t=patch.flatTransform,n=[t.x[1],t.y[1]],origin=mul(n,(value-t.origin[1])/dot(n,n));return clipUV(patch,origin,n,side);}
-export function endFilmProblem(c,{end='front',opening=0,retainedLongFinMm=2,endTrimAllowanceMm=2,rootClearanceMm=c.thicknessMm*2,subdivisions=2}={}){
+export function endFilmProblem(c,{end='front',opening=0,retainedLongFinMm=2,endTrimAllowanceMm=2,rootClearanceMm=c.thicknessMm*2,rootInsetMm=0,subdivisions=2}={}){
  if(!['front','rear'].includes(end))throw Error('End must be front or rear.');
  if(![retainedLongFinMm,endTrimAllowanceMm,rootClearanceMm].every(Number.isFinite)||endTrimAllowanceMm<0||rootClearanceMm<=0||retainedLongFinMm<=c.context.options.heatWidthMm)throw Error('Invalid retained film or root clearance.');
- const atlas=endFilmAtlas(c,{opening,retainedLongFinMm}),isFront=end==='front',sign=isFront?-1:1,net=c.context.net,p=net.p,bodyY=atlas.state.panels.flatMap(p=>points(p).map(v=>v[1])),rootY=isFront?Math.min(...bodyY)-rootClearanceMm:Math.max(...bodyY)+rootClearanceMm;
+ if(!Number.isFinite(rootInsetMm)||rootInsetMm<0)throw Error('Root inset must be nonnegative.');
+ const atlas=endFilmAtlas(c,{opening,retainedLongFinMm}),isFront=end==='front',sign=isFront?-1:1,net=c.context.net,p=net.p,bodyY=atlas.state.panels.flatMap(p=>points(p).map(v=>v[1])),rootY=isFront?Math.min(...bodyY)-rootClearanceMm+rootInsetMm:Math.max(...bodyY)+rootClearanceMm-rootInsetMm;
  const depth=(net.endDepths?.[isFront?0:1]??(isFront?p.l0:p.l1))+p.clearance,sealY=isFront?-depth:p.length+depth,band=p.gap>0?c.context.options.heatWidthMm:0,parts=[];
  if(!Number.isFinite(band)||band<=0||sign*(sealY-sign*band/2-rootY)<=0)throw Error('The heat band must lie outside the plastic with a positive free-film transition.');
  for(const patch of atlas.patches){
@@ -77,7 +82,7 @@ export function endFilmProblem(c,{end='front',opening=0,retainedLongFinMm=2,endT
  const edgeMap=new Map();for(const tri of triangles)for(let j=0;j<3;j++){const a=tri.nodes[j],b=tri.nodes[(j+1)%3],k=[a,b].sort((a,b)=>a-b).join(',');edgeMap.set(k,{nodes:[a,b],length:distance(nodes[a],nodes[b])});}
  const weldMap=new Map(),contactMap=new Map();for(let i=0;i<nodes.length;i++){const key=flat[i].slice(0,2).map(x=>Math.round(x*1e6)).join(',');if(members[i].some(j=>parts[j].role==='fin-weld')){if(!weldMap.has(key))weldMap.set(key,[]);weldMap.get(key).push(i);}if(members[i].some(j=>parts[j].role.startsWith('fin'))){if(!contactMap.has(key))contactMap.set(key,[]);contactMap.get(key).push(i);}}const priorWeldGroups=[...weldMap.values()].filter(g=>g.length>1),coincidentContactGroups=[...contactMap.values()].filter(g=>g.length>1);
  const z0=Math.min(...initial.filter((_,i)=>root.includes(i)).map(p=>p[2])),z1=Math.max(...initial.filter((_,i)=>root.includes(i)).map(p=>p[2]));
- return {schema:'origami-box/end-film-problem/1',end,opening,nodesUvMm:nodes,initialMm:initial,flatMm:flat,triangles,edges:[...edgeMap.values()],root,weld,priorWeldGroups,coincidentContactGroups,members,rootY,sealY,bandWidthMm:band,sealPlaneZMm:(z0+z1)/2,plasticMeshes:atlas.state.panels.map(solidPanelMesh),plasticThicknessMm:c.thicknessMm,maxRetreatMm:p.clearance-band/2,parts:parts.map(p=>({id:p.id,sourceId:p.sourceId,role:p.role,zone:p.zone,uvMm:p.uvMm,transform:p.transform,flatTransform:p.flatTransform})),atlasChecks:{maxIsometryError:atlas.maxIsometryError,maxContinuityError:atlas.maxContinuityError}};
+ return {schema:'origami-box/end-film-problem/1',end,opening,nodesUvMm:nodes,initialMm:initial,flatMm:flat,triangles,edges:[...edgeMap.values()],root,weld,priorWeldGroups,coincidentContactGroups,members,rootY,sealY,bandWidthMm:band,sealPlaneZMm:(z0+z1)/2,plasticMeshes:atlas.state.panels.map(solidPanelMesh),panelMaterials:atlas.state.panels.map((p,i)=>({uvMm:p.uvMm.map(v=>[...v]),flatTransform:atlas.patches.find(q=>q.id==='carrier-'+i).flatTransform})),plasticThicknessMm:c.thicknessMm,maxRetreatMm:p.clearance-band/2,parts:parts.map(p=>({id:p.id,sourceId:p.sourceId,role:p.role,zone:p.zone,uvMm:p.uvMm,transform:p.transform,flatTransform:p.flatTransform})),atlasChecks:{maxIsometryError:atlas.maxIsometryError,maxContinuityError:atlas.maxContinuityError}};
 }
 export function endFilmClampTargets(c,problem,progress){
  const scaled={...c,inwardOffsets:c.inwardOffsets.map(v=>v.map(x=>x*(1-progress)))},atlas=endFilmAtlas(scaled,{opening:problem.opening*(1-progress)}),map=new Map(atlas.patches.map(p=>[p.id,p]));
@@ -109,10 +114,10 @@ export function endFilmAirwayTopology(c,{stepMm=.75,extraBondBands=[]}={}){
   scope:'Conservative two-skin unbonded corridor from the inlet to the body. Unbonded contact may separate; this is distinct from a positive instantaneous fluid gap or measured flow.'};
 }
 export function endLongSeamCoverage(c){
- const atlas=endFilmAtlas(c),flatState=wallTuckClosedState({...c,inwardOffsets:c.inwardOffsets.map(()=>[0,0,0])},0,true),f=seamFrame(c,flatState,0,true),a=point({transform:f.transform},f.uv[0]),u=unit(sub(point({transform:f.transform},f.uv[1]),a)),n=[...c.context.normal0,0],front=endSealLayerRegistry(c,'front'),rear=endSealLayerRegistry(c,'rear'),b=c.context.options.heatWidthMm,offset=wallTuckPhysicalPose(c,{phase:'seal',progress:1}).heater.outwardOffsetMm,start=add(a,mul(n,offset));
+ const atlas=endFilmAtlas(c),flatState=closedState({...c,inwardOffsets:c.inwardOffsets.map(()=>[0,0,0])},0,true),f=seamFrame(c,flatState,0,true),a=point({transform:f.transform},f.uv[0]),u=unit(sub(point({transform:f.transform},f.uv[1]),a)),n=[...c.context.normal0,0],front=endSealLayerRegistry(c,'front'),rear=endSealLayerRegistry(c,'rear'),b=c.context.options.heatWidthMm,offset=longSealOffset(c),start=add(a,mul(n,offset));
  const y0=front.referenceSealY-b/2,y1=rear.referenceSealY+b/2,t0=(y0-start[1]-Math.min(0,n[1]*b))/u[1],t1=(y1-start[1]-Math.max(0,n[1]*b))/u[1],band=[[t0,0],[t1,0],[t1,b],[t0,b]].map(([v,w])=>add(start,add(mul(u,v),mul(n,w))));
  const layers=heatedFilmLayers(atlas.patches.map(p=>({id:p.id,pointsMm:p.uvMm.map(v=>point({...p,transform:p.flatTransform},v))})),band),ids=layers.fullyCoveringPatchIds;
- return {...layers,bandReferenceMm:band,covered:ids.includes('long-fin-0-weld')&&ids.includes('long-fin-5-weld'),requiredWorldYRange:[y0,y1],scope:'The existing longitudinal seal must reach beyond both transverse seal bands, not stop at the plastic ends.'};
+ return {...layers,bandReferenceMm:band,covered:ids.includes('long-fin-0-weld')&&ids.includes('long-fin-'+(c.context.net.faces.length-1)+'-weld'),requiredWorldYRange:[y0,y1],scope:'The existing longitudinal seal must reach beyond both transverse seal bands, not stop at the plastic ends.'};
 }
 export function minimumEndBlankMargin(c,{upperMm=100,toleranceMm=1e-4}={}){
  const old=c.context.options.marginMm,withMargin=m=>{const d=m-old,b=c.context.bounds;return {...c,context:{...c.context,options:{...c.context.options,marginMm:m},bounds:{minX:b.minX-d,maxX:b.maxX+d,minY:b.minY-d,maxY:b.maxY+d}}};};
@@ -129,9 +134,10 @@ export function endFilmBodyMeshes(c,frontProblem,rearProblem){
 export function endFilmOverlayProblem(c,options={}){
  if(!Number.isFinite(options.axialGridMm??2)||(options.axialGridMm??2)<=0)throw Error('Axial mesh spacing must be positive.');
  const base=endFilmProblem(c,{...options,subdivisions:0}),parts=base.parts,polys=parts.map(p=>p.uvMm.map(v=>point({transform:p.flatTransform},v).slice(0,2))),all=polys.flat(),bounds={minX:Math.min(...all.map(p=>p[0])),maxX:Math.max(...all.map(p=>p[0])),minY:Math.min(...all.map(p=>p[1])),maxY:Math.max(...all.map(p=>p[1]))};
- const lines=[],lineKeys=new Set();
- for(const poly of polys)for(let i=0;i<poly.length;i++){const a=poly[i],d=sub(poly[(i+1)%poly.length],a);let n=unit([-d[1],d[0]]),v=dot(n,a);if(n[0]<-1e-9||Math.abs(n[0])<1e-9&&n[1]<0){n=mul(n,-1);v=-v;}const key=[...n,v].map(x=>Math.round(x*1e7)).join(',');if(!lineKeys.has(key)){lineKeys.add(key);lines.push({n,v});}}
+ const lines=[],lineKeys=new Set(),bondedPolys=options.includeBondedBoundaries?base.panelMaterials.map(p=>p.uvMm.map(v=>point({transform:p.flatTransform},v).slice(0,2))):[];
+ for(const poly of [...polys,...bondedPolys])for(let i=0;i<poly.length;i++){const a=poly[i],d=sub(poly[(i+1)%poly.length],a);let n=unit([-d[1],d[0]]),v=dot(n,a);if(n[0]<-1e-9||Math.abs(n[0])<1e-9&&n[1]<0){n=mul(n,-1);v=-v;}const key=[...n,v].map(x=>Math.round(x*1e7)).join(',');if(!lineKeys.has(key)){lineKeys.add(key);lines.push({n,v});}}
  for(let y=bounds.minY+(options.axialGridMm??2);y<bounds.maxY-1e-7;y+=options.axialGridMm??2)lines.push({n:[0,1],v:y});
+ if(options.lateralGridMm!==undefined){if(!Number.isFinite(options.lateralGridMm)||options.lateralGridMm<=0)throw Error('Lateral mesh spacing must be positive.');for(let x=bounds.minX+options.lateralGridMm;x<bounds.maxX-1e-7;x+=options.lateralGridMm)lines.push({n:[1,0],v:x});}
  let cells=[{uvMm:[[bounds.minX,bounds.minY],[bounds.maxX,bounds.minY],[bounds.maxX,bounds.maxY],[bounds.minX,bounds.maxY]]}];
  for(const {n,v} of lines){const next=[];for(const cell of cells){const ds=cell.uvMm.map(p=>dot(n,p)-v);if(Math.min(...ds)<-1e-8&&Math.max(...ds)>1e-8){for(const s of [-1,1]){const p=clipUV(cell,mul(n,v),n,s);if(p)next.push(p);}}else next.push(cell);}cells=next;}
  const nodes=[],initial=[],flat=[],members=[],layoutNodeId=[],uvIndex=new Map(),layoutIndex=new Map(),layoutNodes=[],triangles=[],layoutTriangles=[];
@@ -145,5 +151,6 @@ export function endFilmOverlayProblem(c,options={}){
  const edgeMap=new Map();for(const t of triangles)for(let j=0;j<3;j++){const a=t.nodes[j],b=t.nodes[(j+1)%3],k=[a,b].sort((a,b)=>a-b).join(',');edgeMap.set(k,{nodes:[a,b],length:distance(nodes[a],nodes[b])});}
  const sign=base.end==='front'?-1:1,root=[],weld=[],weldMap=new Map(),contactMap=new Map();
  for(let i=0;i<nodes.length;i++){if(Math.abs(flat[i][1]-base.rootY)<1e-6)root.push(i);if(sign*(flat[i][1]-(base.sealY-sign*base.bandWidthMm/2))>=-1e-7)weld.push(i);const k=key(flat[i].slice(0,2));for(const [role,map] of [['fin-weld',weldMap],['fin',contactMap]])if(members[i].some(j=>role==='fin'?parts[j].role.startsWith(role):parts[j].role===role)){if(!map.has(k))map.set(k,[]);map.get(k).push(i);}}
- return {...base,nodesUvMm:nodes,initialMm:initial,flatMm:flat,triangles,edges:[...edgeMap.values()],members,root,weld,priorWeldGroups:[...weldMap.values()].filter(g=>g.length>1),coincidentContactGroups:[...contactMap.values()].filter(g=>g.length>1),layoutNodeId,layoutNodesMm:layoutNodes,layoutTriangles,meshModel:'shared planar overlay across every coincident material layer'};
+ const bonded=options.includeBondedBoundaries?nodes.map((v,i)=>base.panelMaterials.some(p=>inPolygon(v,p.uvMm))?i:-1).filter(i=>i>=0):[];
+ return {...base,nodesUvMm:nodes,initialMm:initial,flatMm:flat,triangles,edges:[...edgeMap.values()],members,root,weld,bonded,priorWeldGroups:[...weldMap.values()].filter(g=>g.length>1),coincidentContactGroups:[...contactMap.values()].filter(g=>g.length>1),layoutNodeId,layoutNodesMm:layoutNodes,layoutTriangles,meshModel:'shared planar overlay across every coincident material layer'};
 }

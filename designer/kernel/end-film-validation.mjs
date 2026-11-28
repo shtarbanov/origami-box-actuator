@@ -7,13 +7,14 @@ const triangleArea=ps=>length(cross(sub(ps[1],ps[0]),sub(ps[2],ps[0])))/2;
 export function validateEndFilm(problem,solution,{metricToleranceMm=1e-5,contactToleranceMm=1e-6}={}){
  const frames=[];
  for(const frame of solution.frames){
-  const positions=frame.positionsMm;let maxEdgeErrorMm=0,maxRelativeStrain=0,maxAreaRelativeError=0,maxPrincipalStrain=0,maxPriorWeldGapMm=0,maxRootErrorMm=0;
+  const positions=frame.positionsMm;let maxEdgeErrorMm=0,maxRelativeStrain=0,maxAreaRelativeError=0,maxPrincipalStrain=0,maxPrincipalExtension=0,maxPrincipalCompression=0,maxPriorWeldGapMm=0,maxRootErrorMm=0,maxBondedErrorMm=0;
   for(const edge of problem.edges){const e=Math.abs(distance(...edge.nodes.map(i=>positions[i]))-edge.length);maxEdgeErrorMm=Math.max(maxEdgeErrorMm,e);maxRelativeStrain=Math.max(maxRelativeStrain,e/edge.length);}
   for(const i of problem.root)maxRootErrorMm=Math.max(maxRootErrorMm,distance(positions[i],problem.initialMm[i]));
+  for(const i of problem.bonded??[])maxBondedErrorMm=Math.max(maxBondedErrorMm,distance(positions[i],problem.initialMm[i]));
   for(const group of problem.priorWeldGroups)for(const j of group.slice(1))maxPriorWeldGapMm=Math.max(maxPriorWeldGapMm,distance(positions[group[0]],positions[j]));
   const tris=problem.triangles.map((t,index)=>{
    const ps=t.nodes.map(i=>positions[i]),uv=t.nodes.map(i=>[...problem.nodesUvMm[i],0]),a=triangleArea(uv),b=triangleArea(ps);maxAreaRelativeError=Math.max(maxAreaRelativeError,Math.abs(a-b)/a);
-   const u=sub(uv[1],uv[0]),v=sub(uv[2],uv[0]),w=sub(ps[1],ps[0]),z=sub(ps[2],ps[0]),d=u[0]*v[1]-u[1]*v[0],fx=w.map((x,i)=>(x*v[1]-z[i]*u[1])/d),fy=w.map((x,i)=>(z[i]*u[0]-x*v[0])/d),g0=dot(fx,fx),g1=dot(fy,fy),g01=dot(fx,fy),disc=Math.sqrt((g0-g1)**2+4*g01*g01);for(const s of [Math.sqrt(Math.max(0,(g0+g1+disc)/2)),Math.sqrt(Math.max(0,(g0+g1-disc)/2))])maxPrincipalStrain=Math.max(maxPrincipalStrain,Math.abs(s-1));
+   const u=sub(uv[1],uv[0]),v=sub(uv[2],uv[0]),w=sub(ps[1],ps[0]),z=sub(ps[2],ps[0]),d=u[0]*v[1]-u[1]*v[0],fx=w.map((x,i)=>(x*v[1]-z[i]*u[1])/d),fy=w.map((x,i)=>(z[i]*u[0]-x*v[0])/d),g0=dot(fx,fx),g1=dot(fy,fy),g01=dot(fx,fy),disc=Math.sqrt((g0-g1)**2+4*g01*g01);for(const s of [Math.sqrt(Math.max(0,(g0+g1+disc)/2)),Math.sqrt(Math.max(0,(g0+g1-disc)/2))]){maxPrincipalStrain=Math.max(maxPrincipalStrain,Math.abs(s-1));maxPrincipalExtension=Math.max(maxPrincipalExtension,s-1);maxPrincipalCompression=Math.max(maxPrincipalCompression,1-s);}
    return {index,part:t.part,ids:t.nodes,ps,min:[0,1,2].map(k=>Math.min(...ps.map(p=>p[k]))),max:[0,1,2].map(k=>Math.max(...ps.map(p=>p[k])))};
   });
   const intersections=[];
@@ -24,7 +25,7 @@ export function validateEndFilm(problem,solution,{metricToleranceMm=1e-5,contact
   }
   const bandNodes=problem.weld,z=bandNodes.map(i=>positions[i][2]),bandPlanarityMm=frame.progress===1?Math.max(...z)-Math.min(...z):null;
   let plasticAxialClearanceMm=null;if(problem.plasticMeshes){const plasticY=problem.plasticMeshes.flatMap(m=>m.verticesMm.map(p=>p[1])),filmY=positions.map(p=>p[1]);plasticAxialClearanceMm=problem.end==='front'?Math.min(...plasticY)-Math.max(...filmY):Math.min(...filmY)-Math.max(...plasticY);}
-  frames.push({progress:frame.progress,maxEdgeErrorMm,maxRelativeStrain,maxPrincipalStrain,maxAreaRelativeError,maxPriorWeldGapMm,maxRootErrorMm,bandPlanarityMm,plasticAxialClearanceMm,intersections,
+  frames.push({progress:frame.progress,maxEdgeErrorMm,maxRelativeStrain,maxPrincipalStrain,maxPrincipalExtension,maxPrincipalCompression,maxAreaRelativeError,maxPriorWeldGapMm,maxRootErrorMm,maxBondedErrorMm,bondAttachmentPass:maxBondedErrorMm<contactToleranceMm,bandPlanarityMm,plasticAxialClearanceMm,intersections,
    metricPass:maxEdgeErrorMm<=metricToleranceMm,layerGeometryPass:intersections.length===0,priorWeldPass:maxPriorWeldGapMm<contactToleranceMm});
  }
  return {schema:'origami-box/end-film-validation/1',metricToleranceMm,contactToleranceMm,frames,allMetricPass:frames.every(f=>f.metricPass),allLayerGeometryPass:frames.every(f=>f.layerGeometryPass),allPriorWeldPass:frames.every(f=>f.priorWeldPass),materialStrainLimit:null,geometricFlowVerified:false,manufacturingReady:false};

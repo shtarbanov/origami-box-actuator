@@ -63,3 +63,7 @@ test('steep combined profiles use one continuous profiled blank without cutting 
  const step=study.stages.find(s=>s.id==='trim-blank'),film=step.frames[0].meshes.find(m=>m.id==='retained-blank');assert.equal(film.faces[0].length,plan.cutOutlineUvMm.length);assert.equal(step.frames[0].cues.length,plan.cutOutlineUvMm.length);for(const cue of step.frames[0].cues)assert.ok(cue.pointsMm.every(p=>p.length===3));
  assert.deepEqual(original.program.initial.panels,before);
 });
+test('a deeper research domain fixes actual panel attachments instead of silently moving bonded film',()=>{
+ const p=endFilmOverlayProblem(c,{end:'rear',rootInsetMm:6,includeBondedBoundaries:true,lateralGridMm:10,axialGridMm:4});assert.ok(p.bonded.length>0);const initial=endFilmPressFrame(p,0),a=validateEndFilm(p,{frames:[initial]}).frames[0];assert.equal(a.bondAttachmentPass,true);
+ const bad=structuredClone(initial),i=p.bonded.find(i=>!p.root.includes(i));assert.notEqual(i,undefined);bad.positionsMm[i][2]+=.01;assert.equal(validateEndFilm(p,{frames:[bad]}).frames[0].bondAttachmentPass,false);
+});
