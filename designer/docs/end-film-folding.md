@@ -1,5 +1,10 @@
 # End-film closure after both side walls are inward
 
+Metric correction: the percentages below describe the selected deformable
+press map, not a proven minimum required by the actuator. See the
+[inextensibility review](film-inextensibility-review.md) for signed strain,
+an exact local nonstretching construction, and rejected whole-cap searches.
+
 The research viewer now tracks the source-material regions beyond both plastic
 ends. Plastic remains rigid, one-sided 0.30 mm prisms. Film is deformable and has
 zero modeled thickness. This is a conditional geometric path, not a physically
