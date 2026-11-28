@@ -6,6 +6,7 @@ import {panelFrame} from './panel-frame.mjs';
 import {contacts} from './validate.mjs';
 import {fabricationVisuals} from './fabrication-visuals.mjs';
 import {prefoldMaps,outwardMaps,panelsCoplanar,pairError} from './fabrication-motion.mjs';
+import {hingeFabricationGuide,hingeFabricationPose,validateHingeFabrication} from './hinge-fabrication-guide.mjs';
 
 const stages=[
  {id:'layout',operation:'prepare',title:'Start with the flat layout',instruction:'Attach the panels to the film using the folding template. Trace the solid fold lines, dashed sealing lines and inlet circle.'},
@@ -113,6 +114,7 @@ function generalEnvelope(c){
  return [0,1].flatMap(x=>[0,1].flatMap(y=>[0,1].map(z=>[x?hi[0]:lo[0],y?hi[1]:lo[1],z?hi[2]:lo[2]])));
 }
 export function fabricationGuide(spec){
+ const r=resolveSpec(spec);if(!r.spec.walls.left||!r.spec.walls.right)return hingeFabricationGuide(spec);
  const c=context(spec);
  if(!c.supported)return {schema:'origami-box/fabrication-guide/1',supported:false,stages:[],diagnostics:[{code:'FABRICATION_GUIDE_UNSUPPORTED',severity:'info',message:'The fabrication guide requires both folding side walls. The direct-hinge design needs a separate sequence.'}]};
  if(c.prefold)return {schema:'origami-box/fabrication-guide/1',supported:false,stages:[],diagnostics:[{code:'SEAL_LAYER_ACCESS_UNVERIFIED',severity:'warning',message:'The previous prefold route has been withdrawn: coincident seam guides did not establish that only the intended film layers reach the sealer.'}]};
@@ -121,12 +123,13 @@ export function fabricationGuide(spec){
  return {schema:'origami-box/fabrication-guide/1',supported:true,stages:c.stages.map(s=>({...s,transition:{...s.transition}})),framePointsMm,
   diagnostics:[{code:'IDEAL_FABRICATION_PATH',severity:'info',message:'Rigid-panel sequence; flat stacking uses ideal mid-surfaces. Film pleats and finite-thickness clearance require physical validation.'}]};
 }
-export function fabricationPose(spec,state){const c=context(spec);requireSupport(c);if(c.prefold)throw new DesignError('SEAL_LAYER_ACCESS_UNVERIFIED','/spec','The generalized route is withdrawn pending film-layer and sealer-access verification.');return poseValue(c,stateValues(state,c.stages));}
+export function fabricationPose(spec,state){const r=resolveSpec(spec);if(!r.spec.walls.left||!r.spec.walls.right)return hingeFabricationPose(spec,state);const c=context(spec);requireSupport(c);if(c.prefold)throw new DesignError('SEAL_LAYER_ACCESS_UNVERIFIED','/spec','The generalized route is withdrawn pending film-layer and sealer-access verification.');return poseValue(c,stateValues(state,c.stages));}
 
 export function validateFabrication(spec,options={}){
  if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(k=>k!=='samples'))throw new DesignError('INVALID_OPTIONS','/options','Supply only an optional samples count.');
  const {samples=41}=options;
  if(!Number.isInteger(samples)||samples<2||samples>1001)throw new DesignError('INVALID_OPTIONS','/options/samples','Expected an integer from 2 to 1001.');
+ const r=resolveSpec(spec);if(!r.spec.walls.left||!r.spec.walls.right)return validateHingeFabrication(spec,{samples});
  const c=context(spec);requireSupport(c);const {net}=c,ref=geometry(c,0,1).panels;
  let maxDistanceErrorMm=0,maxAreaErrorMm2=0,maxHingeErrorMm=0,maxClosureErrorMm=0,maxSealMismatchMm=0,maxTransitionErrorMm=0,maxPanelMapErrorMm=0,flatStackContactSamples=0;
  const area=ps=>{const sum=[0,0,0];for(let i=0;i<ps.length;i++){const a=ps[i],b=ps[(i+1)%ps.length];sum[0]+=a[1]*b[2]-a[2]*b[1];sum[1]+=a[2]*b[0]-a[0]*b[2];sum[2]+=a[0]*b[1]-a[1]*b[0];}return Math.hypot(...sum)/2;};

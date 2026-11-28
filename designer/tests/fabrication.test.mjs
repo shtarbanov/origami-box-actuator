@@ -57,10 +57,10 @@ test('all neighboring stages share the exact same rigid-panel endpoints',()=>{
   a.panels.forEach((p,f)=>p.pointsMm.forEach((v,j)=>assert.ok(distance(v,b.panels[f].pointsMm[j])<1e-7)));
  }
 });
-test('direct-side hinges keep a separate unsupported manufacturing diagnostic',()=>{
+test('direct-side hinges have their own finite-panel route with explicit end-film limits',()=>{
  for(const side of ['left','right']){
-  const s=defaultSpec();s.rise.front=30;s.walls[side]=false;assert.equal(fabricationGuide(s).supported,false);
-  assert.throws(()=>fabricationPose(s,{stageId:'layout'}),{code:'FABRICATION_GUIDE_UNSUPPORTED'});
+  const s=defaultSpec();s.rise.front=30;s.walls[side]=false;assert.equal(fabricationGuide(s).supported,true);
+  assert.equal(fabricationPose(s,{stageId:'layout'}).panels.length,4);assert.equal(fabricationPose(s,{stageId:'front-seal'}).evidence.endFilmIsometry,'unverified');
  }
 });
 test('fabrication API has strict versioned payloads and never changes the input spec',async()=>{
@@ -89,7 +89,7 @@ test('UI player consumes API ordering, reaches every step, reverses exactly and 
 test('exiting cancels in-flight samples, including unsupported/loading paths',async()=>{
  let resume;const player=createFabricationPlayer(call,()=>{},{nextFrame:()=>new Promise(r=>resume=r)});
  await player.open(defaultSpec());const step=player.step(1);player.close();resume(0);assert.equal(await step,false);assert.equal(player.state.active,false);
- const s=defaultSpec();s.rise.front=30;s.walls.left=false;assert.equal(await player.open(s),false);assert.match(player.state.error,/both folding side walls/);
+ const s=defaultSpec();s.footprint.frontWidth=80;s.rise.front=30;s.footprint.rearWidthRatio=.8;assert.equal(await player.open(s),false);assert.match(player.state.error,/seam guides|sealer|withdrawn/i);
 });
 test('seal rendering uses kernel cue coordinates and a stable camera without solver imports',()=>{
  const s=defaultSpec(),camera=cameraForFrame(frameFromPoints(fabricationGuide(s).framePointsMm));
